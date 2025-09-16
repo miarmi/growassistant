@@ -1,7 +1,7 @@
 blueprint:
-  name: Notify on entity changes (with filters + delta + aggregation)
+  name: Notify on area changes (with filters + delta + aggregation)
   description: |
-    Sends notifications when selected entities change.
+    Sends a notification whenever entities in selected areas change.
     Options:
     - Phone and/or HA UI
     - min/max filters
@@ -10,10 +10,10 @@ blueprint:
   domain: automation
 
   input:
-    entities:
-      name: Entities to monitor
+    areas:
+      name: Areas (Rooms) to monitor
       selector:
-        entity:
+        area:
           multiple: true
 
     enable_phone:
@@ -80,12 +80,16 @@ blueprint:
 
 trigger:
   - platform: state
-    entity_id: !input entities
+    entity_id: all   # watch all entities, then filter by area
 
 mode: queued
 max: 50
 
-condition: []
+condition:
+  - condition: template
+    value_template: >
+      {{ area_id(trigger.entity_id) in (areas if areas is iterable else [areas]) }}
+
 action:
   - variables:
       entity: "{{ trigger.to_state.entity_id }}"
@@ -135,15 +139,15 @@ action:
                   - domain: mobile_app
                     type: notify
                     device_id: !input notify_device
-                    title: "Entity changes (batched)"
+                    title: "Area changes (batched)"
                     message: "{{ buffer }}"
               - conditions: "{{ enable_ui }}"
                 sequence:
                   - service: persistent_notification.create
                     data:
-                      title: "Entity changes (batched)"
+                      title: "Area changes (batched)"
                       message: "{{ buffer }}"
-                      notification_id: "entity-change-batch"
+                      notification_id: "area-change-batch"
           - service: input_text.set_value
             target:
               entity_id: input_text.notify_buffer
