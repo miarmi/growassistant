@@ -1,6 +1,6 @@
 blueprint:
   name: Regulácia VPD s hysterézou + enable switch
-  description: Udržiava VPD okolo cieľovej hodnoty pomocou klímy, zvlhčovača a kúrenia. Podporuje hysterézu a ručné vypnutie.
+  description: Udržiava VPD okolo cieľovej hodnoty pomocou klímy, zvlhčovača a kúrenia. Podporuje hysterézu, enable switch a voľbu kúrenia (climate/switch).
   domain: automation
   input:
     vpd_sensor:
@@ -33,7 +33,7 @@ blueprint:
           multiple: false
     topene_switch:
       name: Dedikované kúrenie (switch)
-      description: Vyber, ak máš kúrenie ako jednoduchý spínač. Ak používaš climate, nechaj prázdne.
+      description: Vyber, ak máš kúrenie ako switch. Ak používaš climate, nechaj prázdne.
       default: []
       selector:
         entity:
@@ -107,16 +107,18 @@ trigger:
 mode: single
 
 condition:
-  # Automation only runs if enable switch is ON
   - condition: state
     entity_id: !input enable_switch
     state: "on"
 
 action:
   - variables:
-      vpd: "{{ states(vpd_sensor) | float(0) }}"
-      temp: "{{ states(temp_sensor) | float(0) }}"
-      hum: "{{ states(hum_sensor) | float(0) }}"
+      vpd_entity: !input vpd_sensor
+      temp_entity: !input temp_sensor
+      hum_entity: !input hum_sensor
+      vpd: "{{ states(vpd_entity) | float(0) }}"
+      temp: "{{ states(temp_entity) | float(0) }}"
+      hum: "{{ states(hum_entity) | float(0) }}"
       target_vpd: !input target_vpd
       hysteresis: !input vpd_hysteresis
       vpd_low: "{{ target_vpd - hysteresis }}"
@@ -138,7 +140,9 @@ action:
               hvac_mode: dry
           # Heat by climate
           - choose:
-              - conditions: "{{ topene_climate != [] }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ topene_climate is defined and topene_climate != [] }}"
                 sequence:
                   - service: climate.set_hvac_mode
                     target:
@@ -146,7 +150,9 @@ action:
                     data:
                       hvac_mode: heat
               # Heat by switch
-              - conditions: "{{ topene_switch != [] }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ topene_switch is defined and topene_switch != [] }}"
                 sequence:
                   - service: switch.turn_on
                     target:
@@ -175,14 +181,18 @@ action:
               temperature: "{{ target_temp }}"
           # Heating off
           - choose:
-              - conditions: "{{ topene_climate != [] }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ topene_climate is defined and topene_climate != [] }}"
                 sequence:
                   - service: climate.set_hvac_mode
                     target:
                       entity_id: !input topene_climate
                     data:
                       hvac_mode: "off"
-              - conditions: "{{ topene_switch != [] }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ topene_switch is defined and topene_switch != [] }}"
                 sequence:
                   - service: switch.turn_off
                     target:
@@ -208,14 +218,18 @@ action:
               entity_id: !input zvlhcovac
           # Heating off
           - choose:
-              - conditions: "{{ topene_climate != [] }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ topene_climate is defined and topene_climate != [] }}"
                 sequence:
                   - service: climate.set_hvac_mode
                     target:
                       entity_id: !input topene_climate
                     data:
                       hvac_mode: "off"
-              - conditions: "{{ topene_switch != [] }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ topene_switch is defined and topene_switch != [] }}"
                 sequence:
                   - service: switch.turn_off
                     target:
