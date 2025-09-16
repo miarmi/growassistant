@@ -1,0 +1,173 @@
+blueprint:
+  name: Notify on entity changes (with filters + delta + aggregation)
+  description: |
+    Sends notifications when selected entities change.
+    Options:
+    - Phone and/or HA UI
+    - min/max filters
+    - delta filter
+    - aggregate changes within a time window
+  domain: automation
+
+  input:
+    entities:
+      name: Entities to monitor
+      selector:
+        entity:
+          multiple: true
+
+    enable_phone:
+      name: Send to phone?
+      default: true
+      selector:
+        boolean:
+
+    notify_device:
+      name: Phone for notifications
+      default: []
+      selector:
+        device:
+          integration: mobile_app
+
+    enable_ui:
+      name: Send to HA UI?
+      default: false
+      selector:
+        boolean:
+
+    min_value:
+      name: Minimum value (optional)
+      default:
+      selector:
+        number:
+          min: -1000
+          max: 1000
+          step: 0.1
+
+    max_value:
+      name: Maximum value (optional)
+      default:
+      selector:
+        number:
+          min: -1000
+          max: 1000
+          step: 0.1
+
+    min_delta:
+      name: Minimum change (delta)
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.1
+
+    aggregate:
+      name: Aggregate notifications?
+      default: true
+      selector:
+        boolean:
+
+    aggregate_window:
+      name: Aggregation window (minutes)
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+          unit_of_measurement: minutes
+
+trigger:
+  - platform: state
+    entity_id: !input entities
+
+mode: queued
+max: 50
+
+condition: []
+action:
+  - variables:
+      entity: "{{ trigger.to_state.entity_id }}"
+      name: "{{ trigger.to_state.name }}"
+      old: "{{ trigger.from_state.state if trigger.from_state else 'unknown' }}"
+      new: "{{ trigger.to_state.state }}"
+      unit: "{{ trigger.to_state.attributes.unit_of_measurement or '' }}"
+      old_num: "{{ trigger.from_state.state | float(none) if trigger.from_state else none }}"
+      new_num: "{{ trigger.to_state.state | float(none) }}"
+      min_val: !input min_value
+      max_val: !input max_value
+      min_delta_val: !input min_delta
+
+  # Filter checks
+  - condition: template
+    value_template: >
+      {% if min_val not in [none, ""] and new_num < min_val %}
+        false
+      {% elif max_val not in [none, ""] and new_num > max_val %}
+        false
+      {% elif min_delta_val|float > 0 and old_num is not none and (new_num - old_num)|abs < min_delta_val|float %}
+        false
+      {% else %}
+        true
+      {% endif %}
+
+  # Aggregated vs instant notification
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ aggregate }}"
+        sequence:
+          - service: input_text.set_value
+            target:
+              entity_id: input_text.notify_buffer
+            data:
+              value: >
+                {% set oldbuf = states('input_text.notify_buffer') %}
+                {{ oldbuf ~ '\n' ~ name ~ ' changed from ' ~ old ~ unit ~ ' to ' ~ new ~ unit }}
+          - delay:
+              minutes: !input aggregate_window
+          - variables:
+              buffer: "{{ states('input_text.notify_buffer') }}"
+          - choose:
+              - conditions: "{{ enable_phone }}"
+                sequence:
+                  - domain: mobile_app
+                    type: notify
+                    device_id: !input notify_device
+                    title: "Entity changes (batched)"
+                    message: "{{ buffer }}"
+              - conditions: "{{ enable_ui }}"
+                sequence:
+                  - service: persistent_notification.create
+                    data:
+                      title: "Entity changes (batched)"
+                      message: "{{ buffer }}"
+                      notification_id: "entity-change-batch"
+          - service: input_text.set_value
+            target:
+              entity_id: input_text.notify_buffer
+            data:
+              value: ""
+
+      - conditions:
+          - condition: template
+            value_template: "{{ not aggregate }}"
+        sequence:
+          - choose:
+              - conditions: "{{ enable_phone }}"
+                sequence:
+                  - domain: mobile_app
+                    type: notify
+                    device_id: !input notify_device
+                    title: "Entity changed"
+                    message: >
+                      {{ name }} changed from {{ old }}{{ unit }} to {{ new }}{{ unit }}
+              - conditions: "{{ enable_ui }}"
+                sequence:
+                  - service: persistent_notification.create
+                    data:
+                      title: "Entity changed"
+                      message: >
+                        {{ name }} changed from {{ old }}{{ unit }} to {{ new }}{{ unit }}
+                      notification_id: "entity-change-{{ entity }}"
