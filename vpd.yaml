@@ -1,6 +1,8 @@
 blueprint:
   name: Regulácia VPD s hysterézou + enable switch
-  description: Udržiava VPD okolo cieľovej hodnoty pomocou klímy, zvlhčovača a kúrenia. Podporuje hysterézu, enable switch a voľbu kúrenia (climate/switch).
+  description: |
+    Udržiava VPD okolo cieľovej hodnoty pomocou klímy, zvlhčovača a kúrenia. 
+    Podporuje hysterézu, enable switch a voľbu kúrenia (climate/switch).
   domain: automation
   input:
     vpd_sensor:
@@ -8,48 +10,60 @@ blueprint:
       selector:
         entity:
           domain: sensor
+
     temp_sensor:
       name: Senzor teploty
       selector:
         entity:
           domain: sensor
+
     hum_sensor:
       name: Senzor vlhkosti
       selector:
         entity:
           domain: sensor
+
     klima:
       name: Klimatizácia
       selector:
         entity:
           domain: climate
+
     topene_climate:
       name: Dedikované kúrenie (climate)
-      description: Vyber, ak máš kúrenie ako climate entitu. Ak používaš switch, nechaj prázdne.
+      description: |
+        Vyber, ak máš kúrenie ako climate entitu. 
+        Ak používaš switch, nechaj prázdne.
       default: []
       selector:
         entity:
           domain: climate
           multiple: false
+
     topene_switch:
       name: Dedikované kúrenie (switch)
-      description: Vyber, ak máš kúrenie ako switch. Ak používaš climate, nechaj prázdne.
+      description: |
+        Vyber, ak máš kúrenie ako switch. 
+        Ak používaš climate, nechaj prázdne.
       default: []
       selector:
         entity:
           domain: switch
           multiple: false
+
     zvlhcovac:
       name: Zvlhčovač
       selector:
         entity:
           domain: switch
+
     enable_switch:
       name: Prepínač povolenia regulácie
       description: Ak je OFF, regulácia sa nevykonáva
       selector:
         entity:
           domain: input_boolean
+
     target_vpd:
       name: Cieľová hodnota VPD
       default: 0.8
@@ -59,6 +73,7 @@ blueprint:
           max: 2.0
           step: 0.05
           unit_of_measurement: kPa
+
     vpd_hysteresis:
       name: Hysteréza VPD
       default: 0.1
@@ -68,6 +83,7 @@ blueprint:
           max: 0.5
           step: 0.05
           unit_of_measurement: kPa
+
     target_temp:
       name: Cieľová teplota
       default: 30
@@ -76,7 +92,8 @@ blueprint:
           min: 15
           max: 40
           step: 0.5
-          unit_of_measurement: "°C"
+          unit_of_measurement: '°C'
+
     hum_low:
       name: Minimálna vlhkosť (hranica pre zvlhčovanie)
       default: 55
@@ -85,7 +102,8 @@ blueprint:
           min: 30
           max: 70
           step: 1
-          unit_of_measurement: "%"
+          unit_of_measurement: '%'
+
     hum_high:
       name: Maximálna vlhkosť (hranica pre sušenie)
       default: 70
@@ -94,7 +112,7 @@ blueprint:
           min: 60
           max: 90
           step: 1
-          unit_of_measurement: "%"
+          unit_of_measurement: '%'
 
     min_run_interval:
       name: Minimálny interval spustenia
@@ -120,34 +138,35 @@ mode: single
 condition:
   - condition: state
     entity_id: !input enable_switch
-    state: "on"
+    state: 'on'
   - condition: template
     value_template: >
       {% set last = state_attr(this.entity_id, 'last_triggered') %}
       {% set delta = as_timestamp(now()) - (as_timestamp(last) or 0) %}
-      {{ delta >= (!input min_run_interval) }}
+      {{ delta >= (min_run_interval | int) }}
 
 action:
   - variables:
       vpd_entity: !input vpd_sensor
       temp_entity: !input temp_sensor
       hum_entity: !input hum_sensor
-      vpd: "{{ states(vpd_entity) | float(0) }}"
-      temp: "{{ states(temp_entity) | float(0) }}"
-      hum: "{{ states(hum_entity) | float(0) }}"
+      vpd: '{{ states(vpd_entity) | float(0) }}'
+      temp: '{{ states(temp_entity) | float(0) }}'
+      hum: '{{ states(hum_entity) | float(0) }}'
       target_vpd: !input target_vpd
       hysteresis: !input vpd_hysteresis
-      vpd_low: "{{ target_vpd - hysteresis }}"
-      vpd_high: "{{ target_vpd + hysteresis }}"
+      vpd_low: '{{ target_vpd - hysteresis }}'
+      vpd_high: '{{ target_vpd + hysteresis }}'
       target_temp: !input target_temp
       hum_low: !input hum_low
       hum_high: !input hum_high
+      min_run_interval: !input min_run_interval
 
   - choose:
       # Sušenie
       - conditions:
           - condition: template
-            value_template: "{{ hum > hum_high and vpd < vpd_low }}"
+            value_template: '{{ hum > hum_high and vpd < vpd_low }}'
         sequence:
           - service: climate.set_hvac_mode
             target:
@@ -158,7 +177,7 @@ action:
           - choose:
               - conditions:
                   - condition: template
-                    value_template: "{{ topene_climate is defined and topene_climate != [] }}"
+                    value_template: '{{ topene_climate is defined and topene_climate != [] }}'
                 sequence:
                   - service: climate.set_hvac_mode
                     target:
@@ -168,7 +187,7 @@ action:
               # Heat by switch
               - conditions:
                   - condition: template
-                    value_template: "{{ topene_switch is defined and topene_switch != [] }}"
+                    value_template: '{{ topene_switch is defined and topene_switch != [] }}'
                 sequence:
                   - service: switch.turn_on
                     target:
@@ -180,7 +199,7 @@ action:
       # Zvlhčovanie
       - conditions:
           - condition: template
-            value_template: "{{ hum < hum_low and vpd > vpd_high }}"
+            value_template: '{{ hum < hum_low and vpd > vpd_high }}'
         sequence:
           - service: switch.turn_on
             target:
@@ -194,21 +213,21 @@ action:
             target:
               entity_id: !input klima
             data:
-              temperature: "{{ target_temp }}"
+              temperature: '{{ target_temp }}'
           # Heating off
           - choose:
               - conditions:
                   - condition: template
-                    value_template: "{{ topene_climate is defined and topene_climate != [] }}"
+                    value_template: '{{ topene_climate is defined and topene_climate != [] }}'
                 sequence:
                   - service: climate.set_hvac_mode
                     target:
                       entity_id: !input topene_climate
                     data:
-                      hvac_mode: "off"
+                      hvac_mode: 'off'
               - conditions:
                   - condition: template
-                    value_template: "{{ topene_switch is defined and topene_switch != [] }}"
+                    value_template: '{{ topene_switch is defined and topene_switch != [] }}'
                 sequence:
                   - service: switch.turn_off
                     target:
@@ -217,7 +236,7 @@ action:
       # Normálna zóna (len ak je aj VPD v hysteréze)
       - conditions:
           - condition: template
-            value_template: "{{ hum >= hum_low and hum <= hum_high and vpd >= vpd_low and vpd <= vpd_high }}"
+            value_template: '{{ hum >= hum_low and hum <= hum_high and vpd >= vpd_low and vpd <= vpd_high }}'
         sequence:
           - service: climate.set_hvac_mode
             target:
@@ -228,7 +247,7 @@ action:
             target:
               entity_id: !input klima
             data:
-              temperature: "{{ target_temp }}"
+              temperature: '{{ target_temp }}'
           - service: switch.turn_off
             target:
               entity_id: !input zvlhcovac
@@ -236,16 +255,16 @@ action:
           - choose:
               - conditions:
                   - condition: template
-                    value_template: "{{ topene_climate is defined and topene_climate != [] }}"
+                    value_template: '{{ topene_climate is defined and topene_climate != [] }}'
                 sequence:
                   - service: climate.set_hvac_mode
                     target:
                       entity_id: !input topene_climate
                     data:
-                      hvac_mode: "off"
+                      hvac_mode: 'off'
               - conditions:
                   - condition: template
-                    value_template: "{{ topene_switch is defined and topene_switch != [] }}"
+                    value_template: '{{ topene_switch is defined and topene_switch != [] }}'
                 sequence:
                   - service: switch.turn_off
                     target:
