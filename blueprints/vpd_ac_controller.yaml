@@ -1,15 +1,10 @@
 blueprint:
-  name: VPD AC controller (dry/auto)
+  name: VPD AC controller (event-driven)
   description: |
-    Applies AC modes according to vpd_mode input_select produced by the decider.
-    DRY when mode=dehumidify, AUTO with target temperature otherwise.
+    Listens for `vpd_mode` events from the decider and sets AC accordingly.
+    DRY when mode=dehumidify, AUTO + temperature otherwise.
   domain: automation
   input:
-    vpd_mode_select:
-      name: Režim (input_select)
-      selector:
-        entity:
-          domain: input_select
     klima:
       name: Klimatizácia
       selector:
@@ -49,8 +44,8 @@ blueprint:
         boolean:
 
 trigger:
-  - platform: state
-    entity_id: !input vpd_mode_select
+  - platform: event
+    event_type: vpd_mode
 
 mode: single
 
@@ -61,8 +56,7 @@ condition:
 
 action:
   - variables:
-      vpd_mode_entity: !input vpd_mode_select
-      mode: "{{ states(vpd_mode_entity) }}"
+      mode: "{{ trigger.event.data.mode | default('normal') }}"
 
   - choose:
       - conditions:

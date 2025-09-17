@@ -1,8 +1,8 @@
 blueprint:
-  name: VPD decider (hysteresis only)
+  name: VPD decider (event-driven)
   description: |
     Computes desired control mode from VPD and humidity guardrails.
-    Writes one of: dehumidify | humidify | normal into a provided input_select.
+    Fires an event `vpd_mode` with `mode` = dehumidify | humidify | normal.
   domain: automation
   input:
     vpd_sensor:
@@ -22,13 +22,6 @@ blueprint:
       selector:
         entity:
           domain: sensor
-
-    vpd_mode_select:
-      name: Výstupný režim (input_select)
-      description: input_select s možnosťami [dehumidify, humidify, normal]
-      selector:
-        entity:
-          domain: input_select
 
     enable_switch:
       name: Prepínač povolenia regulácie
@@ -130,25 +123,40 @@ action:
           - condition: template
             value_template: "{{ vpd < vpd_low and hum > hum_high }}"
         sequence:
-          - service: input_select.select_option
-            target:
-              entity_id: !input vpd_mode_select
+          - service: event.fire
             data:
-              option: dehumidify
+              event_type: vpd_mode
+              event_data:
+                mode: dehumidify
+                vpd: "{{ vpd }}"
+                hum: "{{ hum }}"
+                temp: "{{ temp }}"
+                target_vpd: "{{ target_vpd }}"
+                hysteresis: "{{ hysteresis }}"
       - conditions:
           - condition: template
             value_template: "{{ vpd > vpd_high and hum < hum_low }}"
         sequence:
-          - service: input_select.select_option
-            target:
-              entity_id: !input vpd_mode_select
+          - service: event.fire
             data:
-              option: humidify
+              event_type: vpd_mode
+              event_data:
+                mode: humidify
+                vpd: "{{ vpd }}"
+                hum: "{{ hum }}"
+                temp: "{{ temp }}"
+                target_vpd: "{{ target_vpd }}"
+                hysteresis: "{{ hysteresis }}"
     default:
-      - service: input_select.select_option
-        target:
-          entity_id: !input vpd_mode_select
+      - service: event.fire
         data:
-          option: normal
+          event_type: vpd_mode
+          event_data:
+            mode: normal
+            vpd: "{{ vpd }}"
+            hum: "{{ hum }}"
+            temp: "{{ temp }}"
+            target_vpd: "{{ target_vpd }}"
+            hysteresis: "{{ hysteresis }}"
 
 

@@ -1,15 +1,10 @@
 blueprint:
-  name: VPD humidifier controller
+  name: VPD humidifier controller (event-driven)
   description: |
-    Toggles a humidifier switch according to vpd_mode input_select produced by the decider.
+    Listens for `vpd_mode` events from the decider and toggles the humidifier.
     ON in humidify, OFF otherwise.
   domain: automation
   input:
-    vpd_mode_select:
-      name: Režim (input_select)
-      selector:
-        entity:
-          domain: input_select
     zvlhcovac:
       name: Zvlhčovač (switch)
       selector:
@@ -40,8 +35,8 @@ blueprint:
         boolean:
 
 trigger:
-  - platform: state
-    entity_id: !input vpd_mode_select
+  - platform: event
+    event_type: vpd_mode
 
 mode: single
 
@@ -52,8 +47,7 @@ condition:
 
 action:
   - variables:
-      vpd_mode_entity: !input vpd_mode_select
-      mode: "{{ states(vpd_mode_entity) }}"
+      mode: "{{ trigger.event.data.mode | default('normal') }}"
 
   - choose:
       - conditions:
