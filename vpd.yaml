@@ -96,6 +96,17 @@ blueprint:
           step: 1
           unit_of_measurement: "%"
 
+    min_run_interval:
+      name: Minimálny interval spustenia
+      description: Najkratší čas medzi spusteniami (v sekundách)
+      default: 60
+      selector:
+        number:
+          min: 0
+          max: 3600
+          step: 5
+          unit_of_measurement: s
+
 trigger:
   - platform: state
     entity_id: !input vpd_sensor
@@ -110,6 +121,11 @@ condition:
   - condition: state
     entity_id: !input enable_switch
     state: "on"
+  - condition: template
+    value_template: >
+      {% set last = state_attr(this.entity_id, 'last_triggered') %}
+      {% set delta = as_timestamp(now()) - (as_timestamp(last) or 0) %}
+      {{ delta >= (!input min_run_interval) }}
 
 action:
   - variables:
