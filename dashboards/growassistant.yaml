@@ -1,0 +1,24 @@
+title: GrowAssistant
+views:
+  - title: Overview
+    path: growassistant
+    type: panel
+    cards:
+      - type: vertical-stack
+        cards:
+          - type: markdown
+            content: |
+              ## GrowAssistant – Live log
+              - Tento pohľad zobrazuje posledné udalosti a dôvody rozhodnutí.
+              - V Logbooku nižšie hľadaj text "GrowAssistant" pre filtrovanie.
+          - type: logbook
+            hours_to_show: 12
+          - type: markdown
+            content: |
+              ### Tip
+              Ak chceš mať vyfiltrované len záznamy GrowAssistant:
+              1. Otvor vyhľadávanie v logbook karte (ikona lupy)
+              2. Zadaj „GrowAssistant“
+              3. Potvrď. 
+
+

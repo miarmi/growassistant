@@ -131,6 +131,13 @@ action:
               temp: "{{ temp }}"
               target_vpd: "{{ target_vpd }}"
               hysteresis: "{{ hysteresis }}"
+          - service: logbook.log
+            data:
+              name: "GrowAssistant"
+              message: >-
+                Decider → mode=dehumidify because vpd={{ vpd | round(2) }} < vpd_low={{ vpd_low | round(2) }}
+                and hum={{ hum | round(1) }}% > hum_high={{ hum_high }}%
+              entity_id: "{{ this.entity_id }}"
       - conditions:
           - condition: template
             value_template: "{{ vpd > vpd_high and hum < hum_low }}"
@@ -143,6 +150,13 @@ action:
               temp: "{{ temp }}"
               target_vpd: "{{ target_vpd }}"
               hysteresis: "{{ hysteresis }}"
+          - service: logbook.log
+            data:
+              name: "GrowAssistant"
+              message: >-
+                Decider → mode=humidify because vpd={{ vpd | round(2) }} > vpd_high={{ vpd_high | round(2) }}
+                and hum={{ hum | round(1) }}% < hum_low={{ hum_low }}%
+              entity_id: "{{ this.entity_id }}"
     default:
       - event: vpd_mode
         event_data:
@@ -152,5 +166,12 @@ action:
           temp: "{{ temp }}"
           target_vpd: "{{ target_vpd }}"
           hysteresis: "{{ hysteresis }}"
+      - service: logbook.log
+        data:
+          name: "GrowAssistant"
+          message: >-
+            Decider → mode=normal (vpd={{ vpd | round(2) }} within {{ vpd_low | round(2) }}–{{ vpd_high | round(2) }}
+            and hum={{ hum | round(1) }}% within {{ hum_low }}–{{ hum_high }}%)
+          entity_id: "{{ this.entity_id }}"
 
 

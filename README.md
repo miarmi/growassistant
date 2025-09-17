@@ -15,3 +15,6 @@ Note: The decider blueprint emits a `vpd_mode` event that the controllers listen
 
 Notes
 - The previous monolithic `vpd.yaml` was removed in favor of modular blueprints
+
+Optional dashboard
+- Import `dashboards/growassistant.yaml` as a dashboard (Settings → Dashboards → Three dots → Import from YAML → select the file). It shows a live Logbook and quick tips.
