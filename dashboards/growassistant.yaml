@@ -13,10 +13,8 @@ views:
               otvor Raw editor a uprav zoznam `entities:` nižšie.
           - type: logbook
             hours_to_show: 12
-            entities:
-              - automation.vpd_decider_event_driven
-              - automation.vpd_ac_controller_event_driven
-              - automation.vpd_humidifier_controller_event_driven
+            labels:
+              - GrowAssistant
           - type: markdown
             content: |
               ### Tip
