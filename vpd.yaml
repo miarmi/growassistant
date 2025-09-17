@@ -77,6 +77,16 @@ blueprint:
           max: 40
           step: 0.5
           unit_of_measurement: "°C"
+    min_dry_temp:
+      name: Minimálna teplota pre sušenie
+      description: Sušenie sa spustí/reštartuje až od tejto teploty
+      default: 27
+      selector:
+        number:
+          min: 20
+          max: 35
+          step: 0.5
+          unit_of_measurement: "°C"
     hum_low:
       name: Minimálna vlhkosť (hranica pre zvlhčovanie)
       default: 55
@@ -142,12 +152,88 @@ action:
       target_temp: !input target_temp
       hum_low: !input hum_low
       hum_high: !input hum_high
+      klima_entity: !input klima
+      min_dry_temp: !input min_dry_temp
 
   - choose:
-      # Sušenie
+      # Chladenie po dohriatí (krátky test, či stačí chladenie)
       - conditions:
           - condition: template
-            value_template: "{{ hum > hum_high and vpd < vpd_low }}"
+            value_template: "{{ states(klima_entity) == 'heat' and temp >= target_temp }}"
+        sequence:
+          - service: climate.set_hvac_mode
+            target:
+              entity_id: !input klima
+            data:
+              hvac_mode: cool
+          - service: climate.set_temperature
+            target:
+              entity_id: !input klima
+            data:
+              temperature: "{{ target_temp }}"
+          # Heating off
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ topene_climate is defined and topene_climate != [] }}"
+                sequence:
+                  - service: climate.set_hvac_mode
+                    target:
+                      entity_id: !input topene_climate
+                    data:
+                      hvac_mode: "off"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ topene_switch is defined and topene_switch != [] }}"
+                sequence:
+                  - service: switch.turn_off
+                    target:
+                      entity_id: !input topene_switch
+          - service: switch.turn_off
+            target:
+              entity_id: !input zvlhcovac
+
+      # Sušenie – pomocné kúrenie ak je príliš chladno
+      - conditions:
+          - condition: template
+            value_template: "{{ hum > hum_high and vpd < vpd_low and temp < min_dry_temp }}"
+        sequence:
+          - service: climate.set_hvac_mode
+            target:
+              entity_id: !input klima
+            data:
+              hvac_mode: heat
+          - service: climate.set_temperature
+            target:
+              entity_id: !input klima
+            data:
+              temperature: "{{ target_temp }}"
+          # Zapni dodatočné kúrenie, ak existuje
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ topene_climate is defined and topene_climate != [] }}"
+                sequence:
+                  - service: climate.set_hvac_mode
+                    target:
+                      entity_id: !input topene_climate
+                    data:
+                      hvac_mode: heat
+              - conditions:
+                  - condition: template
+                    value_template: "{{ topene_switch is defined and topene_switch != [] }}"
+                sequence:
+                  - service: switch.turn_on
+                    target:
+                      entity_id: !input topene_switch
+          - service: switch.turn_off
+            target:
+              entity_id: !input zvlhcovac
+
+      # Sušenie – normálne (iba ak teplota >= min_dry_temp)
+      - conditions:
+          - condition: template
+            value_template: "{{ hum > hum_high and vpd < vpd_low and temp >= min_dry_temp }}"
         sequence:
           - service: climate.set_hvac_mode
             target:
