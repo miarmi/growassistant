@@ -223,14 +223,18 @@ action:
                   entity_id: "{{ this.entity_id }}"
           # Notifikácie: DRY
           - choose:
-              - conditions: "{{ notify_enable_phone }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ notify_enable_phone }}"
                 sequence:
                   - domain: mobile_app
                     type: notify
                     device_id: !input notify_device
                     title: "VPD AC: DRY"
                     message: "AC set to DRY (mode=dehumidify)"
-              - conditions: "{{ notify_enable_ui }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ notify_enable_ui }}"
                 sequence:
                   - service: persistent_notification.create
                     data:
@@ -257,14 +261,18 @@ action:
               entity_id: "{{ this.entity_id }}"
           # Notifikácie: AUTO
           - choose:
-              - conditions: "{{ notify_enable_phone }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ notify_enable_phone }}"
                 sequence:
                   - domain: mobile_app
                     type: notify
                     device_id: !input notify_device
                     title: "VPD AC: AUTO"
                     message: "AC set to AUTO at target temperature"
-              - conditions: "{{ notify_enable_ui }}"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ notify_enable_ui }}"
                 sequence:
                   - service: persistent_notification.create
                     data:
