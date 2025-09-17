@@ -144,6 +144,7 @@ action:
       heat_pulse_seconds: !input heat_pulse_seconds
       heat_max_temp_overshoot: !input heat_max_temp_overshoot
       fan_mode_dry: !input fan_mode_dry
+      target_temp_val: !input target_temp
 
   - choose:
       - conditions:
@@ -252,7 +253,7 @@ action:
           - service: logbook.log
             data:
               name: "GrowAssistant"
-              message: "AC controller → set AUTO @ {{ ( !input target_temp ) }}°C (mode={{ mode }})"
+              message: "AC controller → set AUTO @ {{ target_temp_val }}°C (mode={{ mode }})"
               entity_id: "{{ this.entity_id }}"
           # Notifikácie: AUTO
           - choose:
