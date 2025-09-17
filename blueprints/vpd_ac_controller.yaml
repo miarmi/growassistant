@@ -146,6 +146,19 @@ action:
       fan_mode_dry: !input fan_mode_dry
       target_temp_val: !input target_temp
 
+      # Autotune overrides (if helpers exist and autotune is ON)
+      autotune_on: "{{ is_state('input_boolean.ga_autotune_enable','on') }}"
+      min_temp_eff: >-
+        {{ (states('input_number.ga_min_temp')|float(min_temp)) if autotune_on else min_temp }}
+      dry_pulse_eff: >-
+        {{ (states('input_number.ga_dry_pulse')|int(dry_pulse_seconds)) if autotune_on else (dry_pulse_seconds|int) }}
+      heat_pulse_eff: >-
+        {{ (states('input_number.ga_heat_pulse')|int(heat_pulse_seconds)) if autotune_on else (heat_pulse_seconds|int) }}
+      dry_drop_cap_eff: >-
+        {{ (states('input_number.ga_dry_drop_cap')|float(dry_max_temp_drop)) if autotune_on else dry_max_temp_drop }}
+      heat_overshoot_cap_eff: >-
+        {{ (states('input_number.ga_heat_overshoot_cap')|float(heat_max_temp_overshoot)) if autotune_on else heat_max_temp_overshoot }}
+
   - choose:
       - conditions:
           - condition: template
@@ -156,7 +169,7 @@ action:
           - choose:
               - conditions:
                   - condition: template
-                    value_template: "{{ heat_enabled and current_temp < min_temp }}"
+                    value_template: "{{ heat_enabled and current_temp < min_temp_eff }}"
                 sequence:
                   - service: climate.set_hvac_mode
                     target:
@@ -164,13 +177,13 @@ action:
                     data:
                       hvac_mode: heat
                   - delay:
-                      seconds: "{{ heat_pulse_seconds | int }}"
+                      seconds: "{{ heat_pulse_eff | int }}"
                   - variables:
                       t_after: "{{ states(temp_entity) | float(0) }}"
                   - choose:
                       - conditions:
                           - condition: template
-                            value_template: "{{ (t_after - t_start) > heat_max_temp_overshoot }}"
+                            value_template: "{{ (t_after - t_start) > heat_overshoot_cap_eff }}"
                         sequence:
                           - service: climate.set_hvac_mode
                             target:
@@ -181,7 +194,7 @@ action:
                     data:
                       name: "GrowAssistant"
                       message: >-
-                        AC controller → HEAT pulse {{ heat_pulse_seconds }}s (ΔT={{ (t_after - t_start) | round(2) }}°C)
+                        AC controller → HEAT pulse {{ heat_pulse_eff }}s (ΔT={{ (t_after - t_start) | round(2) }}°C; cap={{ heat_overshoot_cap_eff }}°C)
                       entity_id: "{{ this.entity_id }}"
             default:
               - service: climate.set_hvac_mode
@@ -200,13 +213,13 @@ action:
                         data:
                           fan_mode: "{{ fan_mode_dry }}"
               - delay:
-                  seconds: "{{ dry_pulse_seconds | int }}"
+                  seconds: "{{ dry_pulse_eff | int }}"
               - variables:
                   t_after: "{{ states(temp_entity) | float(0) }}"
               - choose:
                   - conditions:
                       - condition: template
-                        value_template: "{{ (t_start - t_after) > dry_max_temp_drop }}"
+                        value_template: "{{ (t_start - t_after) > dry_drop_cap_eff }}"
                     sequence:
                       - service: climate.set_hvac_mode
                         target:
@@ -219,7 +232,7 @@ action:
                 data:
                   name: "GrowAssistant"
                   message: >-
-                    AC controller → DRY pulse {{ dry_pulse_seconds }}s (ΔT={{ (t_start - t_after) | round(2) }}°C); cooldown {{ compressor_min_off_seconds }}s
+                    AC controller → DRY pulse {{ dry_pulse_eff }}s (ΔT={{ (t_start - t_after) | round(2) }}°C; cap={{ dry_drop_cap_eff }}°C); cooldown {{ compressor_min_off_seconds }}s
                   entity_id: "{{ this.entity_id }}"
           # Notifikácie: DRY
           - choose:
