@@ -1,0 +1,9 @@
+.vscode/
+*.code-workspace
+.yamllint
+.yaml-lint
+*.log
+__pycache__/
+.DS_Store
+.idea/
+.vscode-test/

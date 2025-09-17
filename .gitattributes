@@ -1,0 +1,12 @@
+# Set default behavior to automatically normalize line endings
+* text=auto
+
+# YAML files
+*.yaml text
+*.yml text
+
+# Ensure these files are always treated as text
+*.md text
+*.txt text
+
+

@@ -51,6 +51,28 @@ blueprint:
           domain: switch
           multiple: false
 
+    odvlhcovac_climate:
+      name: Dedikovaný odvlhčovač (climate)
+      description: |
+        Vyber, ak máš odvlhčovač ako climate entitu.
+        Ak používaš switch, nechaj prázdne.
+      default: []
+      selector:
+        entity:
+          domain: climate
+          multiple: false
+
+    odvlhcovac_switch:
+      name: Dedikovaný odvlhčovač (switch)
+      description: |
+        Vyber, ak máš odvlhčovač ako switch.
+        Ak používaš climate, nechaj prázdne.
+      default: []
+      selector:
+        entity:
+          domain: switch
+          multiple: false
+
     zvlhcovac:
       name: Zvlhčovač
       selector:
@@ -92,7 +114,7 @@ blueprint:
           min: 15
           max: 40
           step: 0.5
-          unit_of_measurement: '°C'
+          unit_of_measurement: "°C"
 
     hum_low:
       name: Minimálna vlhkosť (hranica pre zvlhčovanie)
@@ -102,7 +124,7 @@ blueprint:
           min: 30
           max: 70
           step: 1
-          unit_of_measurement: '%'
+          unit_of_measurement: "%"
 
     hum_high:
       name: Maximálna vlhkosť (hranica pre sušenie)
@@ -112,7 +134,7 @@ blueprint:
           min: 60
           max: 90
           step: 1
-          unit_of_measurement: '%'
+          unit_of_measurement: "%"
 
     min_run_interval:
       name: Minimálny interval spustenia
@@ -124,6 +146,26 @@ blueprint:
           max: 3600
           step: 5
           unit_of_measurement: s
+
+    # Notifikácie
+    notify_enable_phone:
+      name: Posielať notifikácie na telefón?
+      default: true
+      selector:
+        boolean:
+
+    notify_device:
+      name: Telefón pre notifikácie
+      default: []
+      selector:
+        device:
+          integration: mobile_app
+
+    notify_enable_ui:
+      name: Posielať notifikácie do HA UI?
+      default: false
+      selector:
+        boolean:
 
 trigger:
   - platform: state
@@ -141,7 +183,7 @@ variables:
 condition:
   - condition: state
     entity_id: !input enable_switch
-    state: 'on'
+    state: "on"
   - condition: template
     value_template: >
       {% set last = state_attr(this.entity_id, 'last_triggered') %}
@@ -153,13 +195,13 @@ action:
       vpd_entity: !input vpd_sensor
       temp_entity: !input temp_sensor
       hum_entity: !input hum_sensor
-      vpd: '{{ states(vpd_entity) | float(0) }}'
-      temp: '{{ states(temp_entity) | float(0) }}'
-      hum: '{{ states(hum_entity) | float(0) }}'
+      vpd: "{{ states(vpd_entity) | float(0) }}"
+      temp: "{{ states(temp_entity) | float(0) }}"
+      hum: "{{ states(hum_entity) | float(0) }}"
       target_vpd: !input target_vpd
       hysteresis: !input vpd_hysteresis
-      vpd_low: '{{ target_vpd - hysteresis }}'
-      vpd_high: '{{ target_vpd + hysteresis }}'
+      vpd_low: "{{ target_vpd - hysteresis }}"
+      vpd_high: "{{ target_vpd + hysteresis }}"
       target_temp: !input target_temp
       hum_low: !input hum_low
       hum_high: !input hum_high
@@ -169,18 +211,37 @@ action:
       # Sušenie
       - conditions:
           - condition: template
-            value_template: '{{ hum > hum_high and vpd < vpd_low }}'
+            value_template: "{{ hum > hum_high and vpd < vpd_low }}"
         sequence:
-          - service: climate.set_hvac_mode
-            target:
-              entity_id: !input klima
-            data:
-              hvac_mode: dry
+          # Prefer dedicated dehumidifier if provided; otherwise fall back to climate dry
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ odvlhcovac_climate is defined and odvlhcovac_climate != [] }}"
+                sequence:
+                  - service: climate.set_hvac_mode
+                    target:
+                      entity_id: !input odvlhcovac_climate
+                    data:
+                      hvac_mode: dry
+              - conditions:
+                  - condition: template
+                    value_template: "{{ odvlhcovac_switch is defined and odvlhcovac_switch != [] }}"
+                sequence:
+                  - service: switch.turn_on
+                    target:
+                      entity_id: !input odvlhcovac_switch
+            default:
+              - service: climate.set_hvac_mode
+                target:
+                  entity_id: !input klima
+                data:
+                  hvac_mode: dry
           # Heat by climate
           - choose:
               - conditions:
                   - condition: template
-                    value_template: '{{ topene_climate is defined and topene_climate != [] }}'
+                    value_template: "{{ topene_climate is defined and topene_climate != [] }}"
                 sequence:
                   - service: climate.set_hvac_mode
                     target:
@@ -190,7 +251,7 @@ action:
               # Heat by switch
               - conditions:
                   - condition: template
-                    value_template: '{{ topene_switch is defined and topene_switch != [] }}'
+                    value_template: "{{ topene_switch is defined and topene_switch != [] }}"
                 sequence:
                   - service: switch.turn_on
                     target:
@@ -199,10 +260,29 @@ action:
             target:
               entity_id: !input zvlhcovac
 
+          # Notifikácie: DRY
+          - choose:
+              - conditions: "{{ notify_enable_phone }}"
+                sequence:
+                  - domain: mobile_app
+                    type: notify
+                    device_id: !input notify_device
+                    title: "VPD control: DRY"
+                    message: >
+                      VPD={{ vpd | round(2) }}kPa (target {{ target_vpd }}±{{ hysteresis }}),
+                      RH={{ hum | round(1) }}%, T={{ temp | round(1) }}°C. Actions: klima=dry; zvlhčovač=OFF; kúrenie podľa nastavení.
+              - conditions: "{{ notify_enable_ui }}"
+                sequence:
+                  - service: persistent_notification.create
+                    data:
+                      title: "VPD control: DRY"
+                      message: >
+                        VPD={{ vpd | round(2) }}kPa (target {{ target_vpd }}±{{ hysteresis }}), RH={{ hum | round(1) }}%, T={{ temp | round(1) }}°C.\nActions: klima=dry; zvlhčovač=OFF; kúrenie podľa nastavení.
+
       # Zvlhčovanie
       - conditions:
           - condition: template
-            value_template: '{{ hum < hum_low and vpd > vpd_high }}'
+            value_template: "{{ hum < hum_low and vpd > vpd_high }}"
         sequence:
           - service: switch.turn_on
             target:
@@ -216,30 +296,67 @@ action:
             target:
               entity_id: !input klima
             data:
-              temperature: '{{ target_temp }}'
+              temperature: "{{ target_temp }}"
+          # Dehumidifier off
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ odvlhcovac_climate is defined and odvlhcovac_climate != [] }}"
+                sequence:
+                  - service: climate.set_hvac_mode
+                    target:
+                      entity_id: !input odvlhcovac_climate
+                    data:
+                      hvac_mode: "off"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ odvlhcovac_switch is defined and odvlhcovac_switch != [] }}"
+                sequence:
+                  - service: switch.turn_off
+                    target:
+                      entity_id: !input odvlhcovac_switch
           # Heating off
           - choose:
               - conditions:
                   - condition: template
-                    value_template: '{{ topene_climate is defined and topene_climate != [] }}'
+                    value_template: "{{ topene_climate is defined and topene_climate != [] }}"
                 sequence:
                   - service: climate.set_hvac_mode
                     target:
                       entity_id: !input topene_climate
                     data:
-                      hvac_mode: 'off'
+                      hvac_mode: "off"
               - conditions:
                   - condition: template
-                    value_template: '{{ topene_switch is defined and topene_switch != [] }}'
+                    value_template: "{{ topene_switch is defined and topene_switch != [] }}"
                 sequence:
                   - service: switch.turn_off
                     target:
                       entity_id: !input topene_switch
 
+          # Notifikácie: HUMIDIFY
+          - choose:
+              - conditions: "{{ notify_enable_phone }}"
+                sequence:
+                  - domain: mobile_app
+                    type: notify
+                    device_id: !input notify_device
+                    title: "VPD control: HUMIDIFY"
+                    message: >
+                      VPD={{ vpd | round(2) }}kPa (target {{ target_vpd }}±{{ hysteresis }}),
+                      RH={{ hum | round(1) }}%, T={{ temp | round(1) }}°C. Actions: zvlhčovač=ON; klima=auto {{ target_temp }}°C; kúrenie=OFF.
+              - conditions: "{{ notify_enable_ui }}"
+                sequence:
+                  - service: persistent_notification.create
+                    data:
+                      title: "VPD control: HUMIDIFY"
+                      message: >
+                        VPD={{ vpd | round(2) }}kPa (target {{ target_vpd }}±{{ hysteresis }}), RH={{ hum | round(1) }}%, T={{ temp | round(1) }}°C.\nActions: zvlhčovač=ON; klima=auto {{ target_temp }}°C; kúrenie=OFF.
+
       # Normálna zóna (len ak je aj VPD v hysteréze)
       - conditions:
           - condition: template
-            value_template: '{{ hum >= hum_low and hum <= hum_high and vpd >= vpd_low and vpd <= vpd_high }}'
+            value_template: "{{ hum >= hum_low and hum <= hum_high and vpd >= vpd_low and vpd <= vpd_high }}"
         sequence:
           - service: climate.set_hvac_mode
             target:
@@ -250,25 +367,62 @@ action:
             target:
               entity_id: !input klima
             data:
-              temperature: '{{ target_temp }}'
+              temperature: "{{ target_temp }}"
           - service: switch.turn_off
             target:
               entity_id: !input zvlhcovac
+          # Dehumidifier off
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ odvlhcovac_climate is defined and odvlhcovac_climate != [] }}"
+                sequence:
+                  - service: climate.set_hvac_mode
+                    target:
+                      entity_id: !input odvlhcovac_climate
+                    data:
+                      hvac_mode: "off"
+              - conditions:
+                  - condition: template
+                    value_template: "{{ odvlhcovac_switch is defined and odvlhcovac_switch != [] }}"
+                sequence:
+                  - service: switch.turn_off
+                    target:
+                      entity_id: !input odvlhcovac_switch
           # Heating off
           - choose:
               - conditions:
                   - condition: template
-                    value_template: '{{ topene_climate is defined and topene_climate != [] }}'
+                    value_template: "{{ topene_climate is defined and topene_climate != [] }}"
                 sequence:
                   - service: climate.set_hvac_mode
                     target:
                       entity_id: !input topene_climate
                     data:
-                      hvac_mode: 'off'
+                      hvac_mode: "off"
               - conditions:
                   - condition: template
-                    value_template: '{{ topene_switch is defined and topene_switch != [] }}'
+                    value_template: "{{ topene_switch is defined and topene_switch != [] }}"
                 sequence:
                   - service: switch.turn_off
                     target:
                       entity_id: !input topene_switch
+
+          # Notifikácie: NORMAL
+          - choose:
+              - conditions: "{{ notify_enable_phone }}"
+                sequence:
+                  - domain: mobile_app
+                    type: notify
+                    device_id: !input notify_device
+                    title: "VPD control: NORMAL"
+                    message: >
+                      VPD={{ vpd | round(2) }}kPa (target {{ target_vpd }}±{{ hysteresis }}),
+                      RH={{ hum | round(1) }}%, T={{ temp | round(1) }}°C. Actions: klima=auto {{ target_temp }}°C; zvlhčovač=OFF; kúrenie=OFF.
+              - conditions: "{{ notify_enable_ui }}"
+                sequence:
+                  - service: persistent_notification.create
+                    data:
+                      title: "VPD control: NORMAL"
+                      message: >
+                        VPD={{ vpd | round(2) }}kPa (target {{ target_vpd }}±{{ hysteresis }}), RH={{ hum | round(1) }}%, T={{ temp | round(1) }}°C.\nActions: klima=auto {{ target_temp }}°C; zvlhčovač=OFF; kúrenie=OFF.
