@@ -6,12 +6,12 @@ Contents
 - blueprints/vpd_humidifier_controller.yaml — toggles humidifier based on mode
 - notification.yaml — generic notification blueprint (optional)
 
-Setup
-1. Create helper `input_select.vpd_mode` with options: dehumidify, humidify, normal
-2. Import all blueprints in `blueprints/`
-3. Create 3 automations, wiring the same `input_select.vpd_mode` to each
-4. Provide your `climate` entity to the AC controller and `switch` to the humidifier controller
-5. Optionally enable notifications in controllers
+Setup (event-driven, no helpers needed)
+1. Import all blueprints in `blueprints/`
+2. Create three automations (one per blueprint)
+3. Provide your `climate` entity to the AC controller and `switch` to the humidifier controller
+4. Optionally enable notifications in controllers
+Note: The decider blueprint emits a `vpd_mode` event that the controllers listen to.
 
 Notes
 - The previous monolithic `vpd.yaml` was removed in favor of modular blueprints
