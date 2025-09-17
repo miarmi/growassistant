@@ -198,10 +198,10 @@ action:
                     target:
                       entity_id: !input topene_switch
 
-      # Normálna zóna
+      # Normálna zóna (len ak je aj VPD v hysteréze)
       - conditions:
           - condition: template
-            value_template: "{{ hum >= hum_low and hum <= hum_high }}"
+            value_template: "{{ hum >= hum_low and hum <= hum_high and vpd >= vpd_low and vpd <= vpd_high }}"
         sequence:
           - service: climate.set_hvac_mode
             target:
