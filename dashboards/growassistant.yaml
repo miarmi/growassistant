@@ -8,11 +8,15 @@ views:
         cards:
           - type: markdown
             content: |
-              ## GrowAssistant – Live log
-              - Tento pohľad zobrazuje posledné udalosti a dôvody rozhodnutí.
-              - V Logbooku nižšie hľadaj text "GrowAssistant" pre filtrovanie.
+              ## GrowAssistant – Live log (filtered)
+              Zobrazuje iba udalosti našich automácií. Ak tvoje entity majú iné ID,
+              otvor Raw editor a uprav zoznam `entities:` nižšie.
           - type: logbook
             hours_to_show: 12
+            entities:
+              - automation.vpd_decider_event_driven
+              - automation.vpd_ac_controller_event_driven
+              - automation.vpd_humidifier_controller_event_driven
           - type: markdown
             content: |
               ### Tip
