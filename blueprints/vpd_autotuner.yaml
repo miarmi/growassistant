@@ -34,9 +34,10 @@ condition:
 action:
   - variables:
       mode: "{{ trigger.event.data.mode }}"
-      vpd: "{{ (trigger.event.data.vpd | float(0)) }}"
-      temp: "{{ (trigger.event.data.temp | float(0)) }}"
-      aggr: "{{ states(!input aggressiveness) | float(0.5) }}"
+      vpd: "{{ trigger.event.data.vpd | float(0) }}"
+      temp: "{{ trigger.event.data.temp | float(0) }}"
+      aggressiveness_entity: !input aggressiveness
+      aggr: "{{ states(aggressiveness_entity) | float(0.5) }}"
 
       # Simple heuristic recommendations
       rec_dry_pulse: "{{ 45 + (aggr*15) if mode == 'dehumidify' else 30 }}"
