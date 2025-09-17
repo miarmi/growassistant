@@ -34,6 +34,68 @@ blueprint:
           max: 35
           step: 0.5
           unit_of_measurement: "°C"
+
+    enable_heat_assist:
+      name: Povoliť teplotnú asistenciu (HEAT pri dehumidify pod minimom)
+      default: true
+      selector:
+        boolean:
+
+    dry_pulse_seconds:
+      name: DRY pulz (sekundy)
+      default: 45
+      selector:
+        number:
+          min: 10
+          max: 300
+          step: 5
+          unit_of_measurement: s
+
+    compressor_min_off_seconds:
+      name: Minimálny OFF čas kompresora
+      default: 180
+      selector:
+        number:
+          min: 0
+          max: 900
+          step: 5
+          unit_of_measurement: s
+
+    dry_max_temp_drop:
+      name: Maximálny pokles T počas DRY pulzu (°C)
+      default: 0.5
+      selector:
+        number:
+          min: 0.1
+          max: 3
+          step: 0.1
+          unit_of_measurement: "°C"
+
+    heat_pulse_seconds:
+      name: HEAT pulz (sekundy)
+      default: 20
+      selector:
+        number:
+          min: 5
+          max: 120
+          step: 5
+          unit_of_measurement: s
+
+    heat_max_temp_overshoot:
+      name: Maximálne prehriatie nad začiatok (°C)
+      default: 0.5
+      selector:
+        number:
+          min: 0.1
+          max: 3
+          step: 0.1
+          unit_of_measurement: "°C"
+
+    fan_mode_dry:
+      name: Fan mode pre DRY (nechaj prázdne ak nepodporované)
+      default: ""
+      selector:
+        text:
     enable_switch:
       name: Prepínač povolenia regulácie
       selector:
@@ -75,27 +137,50 @@ action:
       temp_entity: !input temp_sensor
       current_temp: "{{ states(temp_entity) | float(0) }}"
       min_temp: !input min_temp
+      heat_enabled: !input enable_heat_assist
+      dry_pulse_seconds: !input dry_pulse_seconds
+      compressor_min_off_seconds: !input compressor_min_off_seconds
+      dry_max_temp_drop: !input dry_max_temp_drop
+      heat_pulse_seconds: !input heat_pulse_seconds
+      heat_max_temp_overshoot: !input heat_max_temp_overshoot
+      fan_mode_dry: !input fan_mode_dry
 
   - choose:
       - conditions:
           - condition: template
             value_template: "{{ mode == 'dehumidify' }}"
         sequence:
+          - variables:
+              t_start: "{{ current_temp }}"
           - choose:
               - conditions:
                   - condition: template
-                    value_template: "{{ current_temp < min_temp }}"
+                    value_template: "{{ heat_enabled and current_temp < min_temp }}"
                 sequence:
                   - service: climate.set_hvac_mode
                     target:
                       entity_id: !input klima
                     data:
                       hvac_mode: heat
+                  - delay:
+                      seconds: "{{ heat_pulse_seconds | int }}"
+                  - variables:
+                      t_after: "{{ states(temp_entity) | float(0) }}"
+                  - choose:
+                      - conditions:
+                          - condition: template
+                            value_template: "{{ (t_after - t_start) > heat_max_temp_overshoot }}"
+                        sequence:
+                          - service: climate.set_hvac_mode
+                            target:
+                              entity_id: !input klima
+                            data:
+                              hvac_mode: auto
                   - service: logbook.log
                     data:
                       name: "GrowAssistant"
                       message: >-
-                        AC controller → set HEAT (T={{ current_temp | round(1) }}°C < min={{ min_temp }}°C)
+                        AC controller → HEAT pulse {{ heat_pulse_seconds }}s (ΔT={{ (t_after - t_start) | round(2) }}°C)
                       entity_id: "{{ this.entity_id }}"
             default:
               - service: climate.set_hvac_mode
@@ -103,11 +188,37 @@ action:
                   entity_id: !input klima
                 data:
                   hvac_mode: dry
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ fan_mode_dry != '' }}"
+                    sequence:
+                      - service: climate.set_fan_mode
+                        target:
+                          entity_id: !input klima
+                        data:
+                          fan_mode: "{{ fan_mode_dry }}"
+              - delay:
+                  seconds: "{{ dry_pulse_seconds | int }}"
+              - variables:
+                  t_after: "{{ states(temp_entity) | float(0) }}"
+              - choose:
+                  - conditions:
+                      - condition: template
+                        value_template: "{{ (t_start - t_after) > dry_max_temp_drop }}"
+                    sequence:
+                      - service: climate.set_hvac_mode
+                        target:
+                          entity_id: !input klima
+                        data:
+                          hvac_mode: auto
+              - delay:
+                  seconds: "{{ compressor_min_off_seconds | int }}"
               - service: logbook.log
                 data:
                   name: "GrowAssistant"
                   message: >-
-                    AC controller → set DRY (T={{ current_temp | round(1) }}°C ≥ min={{ min_temp }}°C)
+                    AC controller → DRY pulse {{ dry_pulse_seconds }}s (ΔT={{ (t_start - t_after) | round(2) }}°C); cooldown {{ compressor_min_off_seconds }}s
                   entity_id: "{{ this.entity_id }}"
           # Notifikácie: DRY
           - choose:
