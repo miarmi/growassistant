@@ -123,40 +123,34 @@ action:
           - condition: template
             value_template: "{{ vpd < vpd_low and hum > hum_high }}"
         sequence:
-          - service: event.fire
-            data:
-              event_type: vpd_mode
-              event_data:
-                mode: dehumidify
-                vpd: "{{ vpd }}"
-                hum: "{{ hum }}"
-                temp: "{{ temp }}"
-                target_vpd: "{{ target_vpd }}"
-                hysteresis: "{{ hysteresis }}"
+          - event: vpd_mode
+            event_data:
+              mode: dehumidify
+              vpd: "{{ vpd }}"
+              hum: "{{ hum }}"
+              temp: "{{ temp }}"
+              target_vpd: "{{ target_vpd }}"
+              hysteresis: "{{ hysteresis }}"
       - conditions:
           - condition: template
             value_template: "{{ vpd > vpd_high and hum < hum_low }}"
         sequence:
-          - service: event.fire
-            data:
-              event_type: vpd_mode
-              event_data:
-                mode: humidify
-                vpd: "{{ vpd }}"
-                hum: "{{ hum }}"
-                temp: "{{ temp }}"
-                target_vpd: "{{ target_vpd }}"
-                hysteresis: "{{ hysteresis }}"
+          - event: vpd_mode
+            event_data:
+              mode: humidify
+              vpd: "{{ vpd }}"
+              hum: "{{ hum }}"
+              temp: "{{ temp }}"
+              target_vpd: "{{ target_vpd }}"
+              hysteresis: "{{ hysteresis }}"
     default:
-      - service: event.fire
-        data:
-          event_type: vpd_mode
-          event_data:
-            mode: normal
-            vpd: "{{ vpd }}"
-            hum: "{{ hum }}"
-            temp: "{{ temp }}"
-            target_vpd: "{{ target_vpd }}"
-            hysteresis: "{{ hysteresis }}"
+      - event: vpd_mode
+        event_data:
+          mode: normal
+          vpd: "{{ vpd }}"
+          hum: "{{ hum }}"
+          temp: "{{ temp }}"
+          target_vpd: "{{ target_vpd }}"
+          hysteresis: "{{ hysteresis }}"
 
 
