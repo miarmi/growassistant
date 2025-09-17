@@ -18,3 +18,8 @@ Notes
 
 Optional dashboard
 - Import `dashboards/growassistant.yaml` as a dashboard (Settings → Dashboards → Three dots → Import from YAML → select the file). It shows a live Logbook and quick tips.
+
+Autotune (experimental)
+- Helpers (package): `packages/growassistant_helpers.yaml` — add this file to your HA `packages:` include so helpers are created
+- Blueprint: `blueprints/vpd_autotuner.yaml` — create an automation from it; default inputs point to the helpers
+- AC controller will later be extended to read helper values (currently you can map them manually in the UI)

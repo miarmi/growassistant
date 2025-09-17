@@ -1,0 +1,63 @@
+blueprint:
+  name: VPD autotuner (experimental)
+  description: |
+    Listens to GrowAssistant events and updates helper knobs.
+    Adjusts DRY/HEAT pulse lengths and temperature limits gradually.
+  domain: automation
+  input:
+    enable_switch:
+      name: Autotune enable
+      selector:
+        entity:
+          domain: input_boolean
+      default: input_boolean.ga_autotune_enable
+    aggressiveness:
+      name: Aggressiveness (0-1)
+      selector:
+        entity:
+          domain: input_number
+      default: input_number.ga_aggressiveness
+
+trigger:
+  - platform: event
+    event_type: vpd_mode
+
+mode: queued
+max: 10
+
+condition:
+  - condition: state
+    entity_id: !input enable_switch
+    state: "on"
+
+action:
+  - variables:
+      mode: "{{ trigger.event.data.mode }}"
+      vpd: "{{ (trigger.event.data.vpd | float(0)) }}"
+      temp: "{{ (trigger.event.data.temp | float(0)) }}"
+      aggr: "{{ states(!input aggressiveness) | float(0.5) }}"
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ mode == 'dehumidify' }}"
+        sequence:
+          - service: input_number.set_value
+            target: { entity_id: input_number.ga_dry_pulse }
+            data:
+              value: "{{ [ states('input_number.ga_dry_pulse')|float(45) + (aggr*5), 300 ] | min }}"
+      - conditions:
+          - condition: template
+            value_template: "{{ mode == 'humidify' }}"
+        sequence:
+          - service: input_number.set_value
+            target: { entity_id: input_number.ga_min_temp }
+            data:
+              value: "{{ [ states('input_number.ga_min_temp')|float(22) - (aggr*0.2), 10 ] | max }}"
+    default:
+      - service: logbook.log
+        data:
+          name: "GrowAssistant"
+          message: "Autotuner observed mode={{ mode }}; no change"
+
+
