@@ -10,6 +10,11 @@ blueprint:
       selector:
         entity:
           domain: climate
+    temp_sensor:
+      name: Senzor teploty
+      selector:
+        entity:
+          domain: sensor
     target_temp:
       name: Cieľová teplota (pre AUTO)
       default: 30
@@ -17,6 +22,16 @@ blueprint:
         number:
           min: 15
           max: 40
+          step: 0.5
+          unit_of_measurement: "°C"
+    min_temp:
+      name: Minimálna teplota pre HEAT (pri odvlhčovaní)
+      description: Ak je teplota pod touto hodnotou a režim je dehumidify, nastaví sa HEAT; inak DRY.
+      default: 22
+      selector:
+        number:
+          min: 10
+          max: 35
           step: 0.5
           unit_of_measurement: "°C"
     enable_switch:
@@ -57,17 +72,43 @@ condition:
 action:
   - variables:
       mode: "{{ trigger.event.data.mode | default('normal') }}"
+      temp_entity: !input temp_sensor
+      current_temp: "{{ states(temp_entity) | float(0) }}"
+      min_temp: !input min_temp
 
   - choose:
       - conditions:
           - condition: template
             value_template: "{{ mode == 'dehumidify' }}"
         sequence:
-          - service: climate.set_hvac_mode
-            target:
-              entity_id: !input klima
-            data:
-              hvac_mode: dry
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ current_temp < min_temp }}"
+                sequence:
+                  - service: climate.set_hvac_mode
+                    target:
+                      entity_id: !input klima
+                    data:
+                      hvac_mode: heat
+                  - service: logbook.log
+                    data:
+                      name: "GrowAssistant"
+                      message: >-
+                        AC controller → set HEAT (T={{ current_temp | round(1) }}°C < min={{ min_temp }}°C)
+                      entity_id: "{{ this.entity_id }}"
+            default:
+              - service: climate.set_hvac_mode
+                target:
+                  entity_id: !input klima
+                data:
+                  hvac_mode: dry
+              - service: logbook.log
+                data:
+                  name: "GrowAssistant"
+                  message: >-
+                    AC controller → set DRY (T={{ current_temp | round(1) }}°C ≥ min={{ min_temp }}°C)
+                  entity_id: "{{ this.entity_id }}"
           # Notifikácie: DRY
           - choose:
               - conditions: "{{ notify_enable_phone }}"
@@ -97,6 +138,11 @@ action:
               entity_id: !input klima
             data:
               temperature: !input target_temp
+          - service: logbook.log
+            data:
+              name: "GrowAssistant"
+              message: "AC controller → set AUTO @ {{ ( !input target_temp ) }}°C (mode={{ mode }})"
+              entity_id: "{{ this.entity_id }}"
           # Notifikácie: AUTO
           - choose:
               - conditions: "{{ notify_enable_phone }}"
