@@ -123,6 +123,8 @@ blueprint:
 trigger:
   - platform: event
     event_type: vpd_mode
+  - platform: event
+    event_type: vpd_control
 
 mode: single
 
@@ -148,6 +150,18 @@ action:
 
       # Autotune overrides (if helpers exist and autotune is ON)
       autotune_on: "{{ is_state('input_boolean.ga_autotune_enable','on') }}"
+      # Event recommendations (override helpers if a vpd_control event arrives)
+      rec_from_event: "{{ trigger.event.event_type == 'vpd_control' }}"
+      dry_pulse_eff: >-
+        {{ (trigger.event.data.dry_pulse | int(dry_pulse_eff)) if rec_from_event else dry_pulse_eff }}
+      heat_pulse_eff: >-
+        {{ (trigger.event.data.heat_pulse | int(heat_pulse_eff)) if rec_from_event else heat_pulse_eff }}
+      min_temp_eff: >-
+        {{ (trigger.event.data.min_temp | float(min_temp_eff)) if rec_from_event else min_temp_eff }}
+      dry_drop_cap_eff: >-
+        {{ (trigger.event.data.dry_drop_cap | float(dry_drop_cap_eff)) if rec_from_event else dry_drop_cap_eff }}
+      heat_overshoot_cap_eff: >-
+        {{ (trigger.event.data.heat_overshoot_cap | float(heat_overshoot_cap_eff)) if rec_from_event else heat_overshoot_cap_eff }}
       min_temp_eff: >-
         {{ (states('input_number.ga_min_temp')|float(min_temp)) if autotune_on else min_temp }}
       dry_pulse_eff: >-

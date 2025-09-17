@@ -1,8 +1,9 @@
 blueprint:
-  name: VPD autotuner (experimental)
+  name: VPD autotuner (experimental, no-helpers)
   description: |
-    Listens to GrowAssistant events and updates helper knobs.
-    Adjusts DRY/HEAT pulse lengths and temperature limits gradually.
+    Listens to `vpd_mode` and emits `vpd_control` with recommended parameters
+    (dry_pulse, heat_pulse, min_temp, dry_drop_cap, heat_overshoot_cap).
+    If helpers exist, it will also nudge them (optional), but they are not required.
   domain: automation
   input:
     enable_switch:
@@ -37,27 +38,47 @@ action:
       temp: "{{ (trigger.event.data.temp | float(0)) }}"
       aggr: "{{ states(!input aggressiveness) | float(0.5) }}"
 
+      # Simple heuristic recommendations
+      rec_dry_pulse: "{{ 45 + (aggr*15) if mode == 'dehumidify' else 30 }}"
+      rec_heat_pulse: "{{ 15 + (aggr*10) }}"
+      rec_min_temp: "{{ 22 - (aggr*0.5) }}"
+      rec_dry_drop_cap: "{{ 0.5 + (aggr*0.3) }}"
+      rec_heat_overshoot_cap: "{{ 0.5 + (aggr*0.3) }}"
+
+  - event: vpd_control
+    event_data:
+      mode: "{{ mode }}"
+      dry_pulse: "{{ rec_dry_pulse | round(0) }}"
+      heat_pulse: "{{ rec_heat_pulse | round(0) }}"
+      min_temp: "{{ rec_min_temp | round(1) }}"
+      dry_drop_cap: "{{ rec_dry_drop_cap | round(1) }}"
+      heat_overshoot_cap: "{{ rec_heat_overshoot_cap | round(1) }}"
+
   - choose:
       - conditions:
-          - condition: template
-            value_template: "{{ mode == 'dehumidify' }}"
+          - condition: state
+            entity_id: input_boolean.ga_autotune_enable
+            state: "on"
         sequence:
           - service: input_number.set_value
             target: { entity_id: input_number.ga_dry_pulse }
             data:
-              value: "{{ [ states('input_number.ga_dry_pulse')|float(45) + (aggr*5), 300 ] | min }}"
-      - conditions:
-          - condition: template
-            value_template: "{{ mode == 'humidify' }}"
-        sequence:
+              value: "{{ rec_dry_pulse }}"
+          - service: input_number.set_value
+            target: { entity_id: input_number.ga_heat_pulse }
+            data:
+              value: "{{ rec_heat_pulse }}"
           - service: input_number.set_value
             target: { entity_id: input_number.ga_min_temp }
             data:
-              value: "{{ [ states('input_number.ga_min_temp')|float(22) - (aggr*0.2), 10 ] | max }}"
-    default:
-      - service: logbook.log
-        data:
-          name: "GrowAssistant"
-          message: "Autotuner observed mode={{ mode }}; no change"
+              value: "{{ rec_min_temp }}"
+          - service: input_number.set_value
+            target: { entity_id: input_number.ga_dry_drop_cap }
+            data:
+              value: "{{ rec_dry_drop_cap }}"
+          - service: input_number.set_value
+            target: { entity_id: input_number.ga_heat_overshoot_cap }
+            data:
+              value: "{{ rec_heat_overshoot_cap }}"
 
 
