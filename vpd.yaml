@@ -135,6 +135,9 @@ trigger:
 
 mode: single
 
+variables:
+  min_run_interval: !input min_run_interval
+
 condition:
   - condition: state
     entity_id: !input enable_switch
