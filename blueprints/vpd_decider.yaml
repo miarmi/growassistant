@@ -1,0 +1,154 @@
+blueprint:
+  name: VPD decider (hysteresis only)
+  description: |
+    Computes desired control mode from VPD and humidity guardrails.
+    Writes one of: dehumidify | humidify | normal into a provided input_select.
+  domain: automation
+  input:
+    vpd_sensor:
+      name: Senzor VPD
+      selector:
+        entity:
+          domain: sensor
+
+    temp_sensor:
+      name: Senzor teploty
+      selector:
+        entity:
+          domain: sensor
+
+    hum_sensor:
+      name: Senzor vlhkosti
+      selector:
+        entity:
+          domain: sensor
+
+    vpd_mode_select:
+      name: Výstupný režim (input_select)
+      description: input_select s možnosťami [dehumidify, humidify, normal]
+      selector:
+        entity:
+          domain: input_select
+
+    enable_switch:
+      name: Prepínač povolenia regulácie
+      selector:
+        entity:
+          domain: input_boolean
+
+    target_vpd:
+      name: Cieľová hodnota VPD
+      default: 0.8
+      selector:
+        number:
+          min: 0.1
+          max: 2.0
+          step: 0.05
+          unit_of_measurement: kPa
+
+    vpd_hysteresis:
+      name: Hysteréza VPD
+      default: 0.1
+      selector:
+        number:
+          min: 0.05
+          max: 0.5
+          step: 0.05
+          unit_of_measurement: kPa
+
+    hum_low:
+      name: Minimálna vlhkosť (hranica pre zvlhčovanie)
+      default: 55
+      selector:
+        number:
+          min: 30
+          max: 70
+          step: 1
+          unit_of_measurement: "%"
+
+    hum_high:
+      name: Maximálna vlhkosť (hranica pre sušenie)
+      default: 70
+      selector:
+        number:
+          min: 60
+          max: 90
+          step: 1
+          unit_of_measurement: "%"
+
+    min_run_interval:
+      name: Minimálny interval rozhodovania
+      description: Najkratší čas medzi rozhodnutiami (v sekundách)
+      default: 60
+      selector:
+        number:
+          min: 0
+          max: 3600
+          step: 5
+          unit_of_measurement: s
+
+trigger:
+  - platform: state
+    entity_id: !input vpd_sensor
+  - platform: state
+    entity_id: !input temp_sensor
+  - platform: state
+    entity_id: !input hum_sensor
+
+mode: single
+
+variables:
+  min_run_interval: !input min_run_interval
+
+condition:
+  - condition: state
+    entity_id: !input enable_switch
+    state: "on"
+  - condition: template
+    value_template: >
+      {% set last = state_attr(this.entity_id, 'last_triggered') %}
+      {% set delta = as_timestamp(now()) - (as_timestamp(last) or 0) %}
+      {{ delta >= (min_run_interval | int) }}
+
+action:
+  - variables:
+      vpd_entity: !input vpd_sensor
+      temp_entity: !input temp_sensor
+      hum_entity: !input hum_sensor
+      vpd: "{{ states(vpd_entity) | float(0) }}"
+      temp: "{{ states(temp_entity) | float(0) }}"
+      hum: "{{ states(hum_entity) | float(0) }}"
+      target_vpd: !input target_vpd
+      hysteresis: !input vpd_hysteresis
+      vpd_low: "{{ target_vpd - hysteresis }}"
+      vpd_high: "{{ target_vpd + hysteresis }}"
+      hum_low: !input hum_low
+      hum_high: !input hum_high
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ vpd < vpd_low and hum > hum_high }}"
+        sequence:
+          - service: input_select.select_option
+            target:
+              entity_id: !input vpd_mode_select
+            data:
+              option: dehumidify
+      - conditions:
+          - condition: template
+            value_template: "{{ vpd > vpd_high and hum < hum_low }}"
+        sequence:
+          - service: input_select.select_option
+            target:
+              entity_id: !input vpd_mode_select
+            data:
+              option: humidify
+    default:
+      - service: input_select.select_option
+        target:
+          entity_id: !input vpd_mode_select
+        data:
+          option: normal
+
+

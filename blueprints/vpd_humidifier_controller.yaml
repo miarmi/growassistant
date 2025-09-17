@@ -1,0 +1,100 @@
+blueprint:
+  name: VPD humidifier controller
+  description: |
+    Toggles a humidifier switch according to vpd_mode input_select produced by the decider.
+    ON in humidify, OFF otherwise.
+  domain: automation
+  input:
+    vpd_mode_select:
+      name: Režim (input_select)
+      selector:
+        entity:
+          domain: input_select
+    zvlhcovac:
+      name: Zvlhčovač (switch)
+      selector:
+        entity:
+          domain: switch
+    enable_switch:
+      name: Prepínač povolenia regulácie
+      selector:
+        entity:
+          domain: input_boolean
+
+    # Notifikácie (voliteľné)
+    notify_enable_phone:
+      name: Posielať notifikácie na telefón?
+      default: true
+      selector:
+        boolean:
+    notify_device:
+      name: Telefón pre notifikácie
+      default: []
+      selector:
+        device:
+          integration: mobile_app
+    notify_enable_ui:
+      name: Posielať notifikácie do HA UI?
+      default: false
+      selector:
+        boolean:
+
+trigger:
+  - platform: state
+    entity_id: !input vpd_mode_select
+
+mode: single
+
+condition:
+  - condition: state
+    entity_id: !input enable_switch
+    state: "on"
+
+action:
+  - variables:
+      vpd_mode_entity: !input vpd_mode_select
+      mode: "{{ states(vpd_mode_entity) }}"
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ mode == 'humidify' }}"
+        sequence:
+          - service: switch.turn_on
+            target:
+              entity_id: !input zvlhcovac
+          # Notifikácie
+          - choose:
+              - conditions: "{{ notify_enable_phone }}"
+                sequence:
+                  - domain: mobile_app
+                    type: notify
+                    device_id: !input notify_device
+                    title: "VPD Humidifier: ON"
+                    message: "Humidifier turned ON (mode=humidify)"
+              - conditions: "{{ notify_enable_ui }}"
+                sequence:
+                  - service: persistent_notification.create
+                    data:
+                      title: "VPD Humidifier: ON"
+                      message: "Humidifier turned ON (mode=humidify)"
+    default:
+      - service: switch.turn_off
+        target:
+          entity_id: !input zvlhcovac
+      - choose:
+          - conditions: "{{ notify_enable_phone }}"
+            sequence:
+              - domain: mobile_app
+                type: notify
+                device_id: !input notify_device
+                title: "VPD Humidifier: OFF"
+                message: "Humidifier turned OFF (mode!=humidify)"
+          - conditions: "{{ notify_enable_ui }}"
+            sequence:
+              - service: persistent_notification.create
+                data:
+                  title: "VPD Humidifier: OFF"
+                  message: "Humidifier turned OFF (mode!=humidify)"
+
+

@@ -1,0 +1,122 @@
+blueprint:
+  name: VPD AC controller (dry/auto)
+  description: |
+    Applies AC modes according to vpd_mode input_select produced by the decider.
+    DRY when mode=dehumidify, AUTO with target temperature otherwise.
+  domain: automation
+  input:
+    vpd_mode_select:
+      name: Režim (input_select)
+      selector:
+        entity:
+          domain: input_select
+    klima:
+      name: Klimatizácia
+      selector:
+        entity:
+          domain: climate
+    target_temp:
+      name: Cieľová teplota (pre AUTO)
+      default: 30
+      selector:
+        number:
+          min: 15
+          max: 40
+          step: 0.5
+          unit_of_measurement: "°C"
+    enable_switch:
+      name: Prepínač povolenia regulácie
+      selector:
+        entity:
+          domain: input_boolean
+
+    # Notifikácie (voliteľné)
+    notify_enable_phone:
+      name: Posielať notifikácie na telefón?
+      default: true
+      selector:
+        boolean:
+    notify_device:
+      name: Telefón pre notifikácie
+      default: []
+      selector:
+        device:
+          integration: mobile_app
+    notify_enable_ui:
+      name: Posielať notifikácie do HA UI?
+      default: false
+      selector:
+        boolean:
+
+trigger:
+  - platform: state
+    entity_id: !input vpd_mode_select
+
+mode: single
+
+condition:
+  - condition: state
+    entity_id: !input enable_switch
+    state: "on"
+
+action:
+  - variables:
+      vpd_mode_entity: !input vpd_mode_select
+      mode: "{{ states(vpd_mode_entity) }}"
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ mode == 'dehumidify' }}"
+        sequence:
+          - service: climate.set_hvac_mode
+            target:
+              entity_id: !input klima
+            data:
+              hvac_mode: dry
+          # Notifikácie: DRY
+          - choose:
+              - conditions: "{{ notify_enable_phone }}"
+                sequence:
+                  - domain: mobile_app
+                    type: notify
+                    device_id: !input notify_device
+                    title: "VPD AC: DRY"
+                    message: "AC set to DRY (mode=dehumidify)"
+              - conditions: "{{ notify_enable_ui }}"
+                sequence:
+                  - service: persistent_notification.create
+                    data:
+                      title: "VPD AC: DRY"
+                      message: "AC set to DRY (mode=dehumidify)"
+      - conditions:
+          - condition: template
+            value_template: "{{ mode == 'humidify' or mode == 'normal' }}"
+        sequence:
+          - service: climate.set_hvac_mode
+            target:
+              entity_id: !input klima
+            data:
+              hvac_mode: auto
+          - service: climate.set_temperature
+            target:
+              entity_id: !input klima
+            data:
+              temperature: !input target_temp
+          # Notifikácie: AUTO
+          - choose:
+              - conditions: "{{ notify_enable_phone }}"
+                sequence:
+                  - domain: mobile_app
+                    type: notify
+                    device_id: !input notify_device
+                    title: "VPD AC: AUTO"
+                    message: "AC set to AUTO at target temperature"
+              - conditions: "{{ notify_enable_ui }}"
+                sequence:
+                  - service: persistent_notification.create
+                    data:
+                      title: "VPD AC: AUTO"
+                      message: "AC set to AUTO at target temperature"
+
+
