@@ -45,7 +45,9 @@ blueprint:
       name: Humidifier
       selector:
         entity:
-          domain: humidifier
+          filter:
+            - domain: humidifier
+            - domain: switch
 
     target_vpd:
       name: Target VPD (kPa)
@@ -302,7 +304,7 @@ action:
               temperature: !input max_temp
           - service: climate.turn_off
             target: { entity_id: !input electrolux }
-          - service: humidifier.turn_off
+          - service: homeassistant.turn_off
             target: { entity_id: !input humidifier }
           - if:
               - condition: template
@@ -342,7 +344,7 @@ action:
           - service: climate.set_hvac_mode
             target: { entity_id: !input electrolux }
             data: { hvac_mode: dry }
-          - service: humidifier.turn_off
+          - service: homeassistant.turn_off
             target: { entity_id: !input humidifier }
           - if:
               - condition: template
@@ -386,7 +388,7 @@ action:
           - service: climate.set_hvac_mode
             target: { entity_id: !input electrolux }
             data: { hvac_mode: dry }
-          - service: humidifier.turn_off
+          - service: homeassistant.turn_off
             target: { entity_id: !input humidifier }
           - if:
               - condition: template
@@ -425,7 +427,7 @@ action:
           - condition: template
             value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
         sequence:
-          - service: humidifier.turn_on
+          - service: homeassistant.turn_on
             target: { entity_id: !input humidifier }
           - service: climate.turn_off
             target: { entity_id: !input electrolux }
@@ -467,7 +469,7 @@ action:
           - condition: template
             value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
         sequence:
-          - service: humidifier.turn_on
+          - service: homeassistant.turn_on
             target: { entity_id: !input humidifier }
           - service: climate.turn_off
             target: { entity_id: !input electrolux }
@@ -512,7 +514,7 @@ action:
           - service: climate.set_hvac_mode
             target: { entity_id: !input electrolux }
             data: { hvac_mode: dry }
-          - service: humidifier.turn_off
+          - service: homeassistant.turn_off
             target: { entity_id: !input humidifier }
           - service: climate.turn_off
             target: { entity_id: !input ac_grow }
