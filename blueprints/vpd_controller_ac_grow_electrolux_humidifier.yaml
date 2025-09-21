@@ -1,0 +1,587 @@
+blueprint:
+  name: VPD Controller – AC_Grow + Electrolux + Humidifier (HA 2025.9.3)
+  description: >
+    Single blueprint to control VPD with hysteresis and hard temp/RH limits using:
+    - AC_Grow (split AC via Midea LAN) = highest consumption (cooling only in safety).
+    - Electrolux (portable AC) = medium consumption (DRY for dehumidifying; tends to warm).
+    - Humidifier = lowest consumption.
+    Priority: Temp > max → Temp < min → RH > max → RH < min → VPD high (humidify) → VPD low (dehumidify) → Hold.
+    Energy features: min on/off cycle guards per device, optional price cap, energy_mode.
+    Logging: Logbook + system_log; optional input_text for last action; optional counters per branch.
+  domain: automation
+  author: user
+  source_url: ""
+
+  input:
+    vpd_sensor:
+      name: VPD sensor (kPa)
+      selector:
+        entity:
+          domain: sensor
+    temp_sensor:
+      name: Temperature sensor (°C)
+      selector:
+        entity:
+          domain: sensor
+          device_class: temperature
+    humi_sensor:
+      name: Humidity sensor (%)
+      selector:
+        entity:
+          domain: sensor
+          device_class: humidity
+
+    ac_grow:
+      name: AC_Grow climate (split AC via Midea LAN)
+      selector:
+        entity:
+          domain: climate
+    electrolux:
+      name: Electrolux climate (portable AC)
+      selector:
+        entity:
+          domain: climate
+    humidifier:
+      name: Humidifier
+      selector:
+        entity:
+          domain: humidifier
+
+    target_vpd:
+      name: Target VPD (kPa)
+      default: 0.8
+      selector:
+        number:
+          min: 0.2
+          max: 2.0
+          step: 0.01
+          mode: box
+    hysteresis:
+      name: VPD hysteresis (kPa)
+      default: 0.05
+      selector:
+        number:
+          min: 0.0
+          max: 0.3
+          step: 0.01
+          mode: box
+
+    min_temp:
+      name: Min temperature (°C)
+      default: 22
+      selector:
+        number:
+          min: 10
+          max: 40
+          step: 0.5
+          mode: box
+    max_temp:
+      name: Max temperature (°C)
+      default: 28
+      selector:
+        number:
+          min: 10
+          max: 40
+          step: 0.5
+          mode: box
+
+    min_humi:
+      name: Min humidity (%)
+      default: 45
+      selector:
+        number:
+          min: 20
+          max: 90
+          step: 1
+          mode: box
+    max_humi:
+      name: Max humidity (%)
+      default: 65
+      selector:
+        number:
+          min: 20
+          max: 90
+          step: 1
+          mode: box
+
+    # Energy/consumption options
+    energy_mode:
+      name: Energy mode
+      description: efficiency_first prefers the lowest-consumption action for non-safety corrections.
+      default: efficiency_first
+      selector:
+        select:
+          options:
+            - efficiency_first
+            - balanced
+
+    min_cycle_seconds_ac_grow:
+      name: Min cycle (s) – AC_Grow
+      default: 600
+      selector:
+        number:
+          min: 0
+          max: 3600
+          step: 30
+          mode: box
+    min_cycle_seconds_electrolux:
+      name: Min cycle (s) – Electrolux
+      default: 600
+      selector:
+        number:
+          min: 0
+          max: 3600
+          step: 30
+          mode: box
+    min_cycle_seconds_humidifier:
+      name: Min cycle (s) – Humidifier
+      default: 180
+      selector:
+        number:
+          min: 0
+          max: 3600
+          step: 30
+          mode: box
+
+    price_sensor:
+      name: (Optional) electricity price sensor (e.g., sensor.spot_price_eur_kwh)
+      default:
+      selector:
+        entity:
+          domain: sensor
+          multiple: false
+    price_cap:
+      name: (Optional) price cap per kWh (0 = disabled)
+      default: 0.0
+      selector:
+        number:
+          min: 0
+          max: 5
+          step: 0.001
+          mode: box
+
+    # Logging
+    debug_logging:
+      name: Debug logging (Logbook + system_log)
+      default: true
+      selector:
+        boolean:
+
+    # Optional helpers for tuning/telemetry
+    last_action_text:
+      name: (Optional) input_text to store last action
+      default:
+      selector:
+        entity:
+          domain: input_text
+          multiple: false
+
+    counter_overheat:
+      name: (Optional) counter – overheat (T > max)
+      default:
+      selector:
+        entity:
+          domain: counter
+    counter_undercool:
+      name: (Optional) counter – undercool (T < min)
+      default:
+      selector:
+        entity:
+          domain: counter
+    counter_rh_high:
+      name: (Optional) counter – RH high (> max)
+      default:
+      selector:
+        entity:
+          domain: counter
+    counter_rh_low:
+      name: (Optional) counter – RH low (< min)
+      default:
+      selector:
+        entity:
+          domain: counter
+    counter_vpd_high:
+      name: (Optional) counter – VPD high (> band)
+      default:
+      selector:
+        entity:
+          domain: counter
+    counter_vpd_low:
+      name: (Optional) counter – VPD low (< band)
+      default:
+      selector:
+        entity:
+          domain: counter
+    counter_hold:
+      name: (Optional) counter – hold/no change
+      default:
+      selector:
+        entity:
+          domain: counter
+
+mode: restart
+max_exceeded: silent
+
+variables:
+  # Entity IDs
+  vpd_entity: !input vpd_sensor
+  t_entity: !input temp_sensor
+  rh_entity: !input humi_sensor
+  ac_entity: !input ac_grow
+  elx_entity: !input electrolux
+  humi_entity: !input humidifier
+  last_action_entity: !input last_action_text
+  c_overheat_entity: !input counter_overheat
+  c_undercool_entity: !input counter_undercool
+  c_rh_high_entity: !input counter_rh_high
+  c_rh_low_entity: !input counter_rh_low
+  c_vpd_high_entity: !input counter_vpd_high
+  c_vpd_low_entity: !input counter_vpd_low
+  c_hold_entity: !input counter_hold
+
+  # Readings
+  vpd: "{{ states(vpd_entity) | float(0) }}"
+  t: "{{ states(t_entity) | float(0) }}"
+  rh: "{{ states(rh_entity) | float(0) }}"
+
+  # Setpoints / bands
+  vpd_target: !input target_vpd
+  hyst: !input hysteresis
+  vpd_hi: "{{ vpd_target + hyst }}"
+  vpd_lo: "{{ vpd_target - hyst }}"
+  t_min: !input min_temp
+  t_max: !input max_temp
+  rh_min: !input min_humi
+  rh_max: !input max_humi
+
+  # Energy / guards
+  e_mode: !input energy_mode
+  now_ts: "{{ as_timestamp(now()) }}"
+  ac_last: "{{ as_timestamp(states[ac_entity].last_changed) if ac_entity else 0 }}"
+  elx_last: "{{ as_timestamp(states[elx_entity].last_changed) if elx_entity else 0 }}"
+  humi_last: "{{ as_timestamp(states[humi_entity].last_changed) if humi_entity else 0 }}"
+  min_cycle_ac: !input min_cycle_seconds_ac_grow
+  min_cycle_elx: !input min_cycle_seconds_electrolux
+  min_cycle_humi: !input min_cycle_seconds_humidifier
+  ac_can_change: "{{ (now_ts - ac_last) > min_cycle_ac }}"
+  elx_can_change: "{{ (now_ts - elx_last) > min_cycle_elx }}"
+  humi_can_change: "{{ (now_ts - humi_last) > min_cycle_humi }}"
+  price_entity: !input price_sensor
+  price_val: "{{ states(price_entity) | float(0) if price_entity else 0 }}"
+  price_cap_val: !input price_cap
+  price_ok: "{{ (price_cap_val | float(0)) == 0 or price_val <= (price_cap_val | float(0)) }}"
+  dbg: !input debug_logging
+
+trigger:
+  - platform: state
+    entity_id: !input vpd_sensor
+  - platform: state
+    entity_id: !input temp_sensor
+  - platform: state
+    entity_id: !input humi_sensor
+  - platform: time_pattern
+    seconds: "/30"
+  - platform: homeassistant
+    event: start
+
+condition: []
+
+action:
+  - choose:
+      - conditions:
+          - condition: numeric_state
+            entity_id: !input temp_sensor
+            above: !input max_temp
+        sequence:
+          - service: climate.set_hvac_mode
+            target: { entity_id: !input ac_grow }
+            data: { hvac_mode: cool }
+          - service: climate.set_temperature
+            target: { entity_id: !input ac_grow }
+            data:
+              temperature: !input max_temp
+          - service: climate.turn_off
+            target: { entity_id: !input electrolux }
+          - service: humidifier.turn_off
+            target: { entity_id: !input humidifier }
+          - if:
+              - condition: template
+                value_template: "{{ dbg }}"
+            then:
+              - service: logbook.log
+                data:
+                  name: "VPD Controller"
+                  message: "Overheat: T={{ t }}°C > {{ t_max }}. Action: AC_Grow COOL→{{ t_max }}; Electrolux OFF; Humidifier OFF. RH={{ rh }}%, VPD={{ vpd }} (target {{ vpd_target }}±{{ hyst }})."
+              - service: system_log.write
+                data:
+                  level: info
+                  message: "[VPD Controller] Overheat branch executed."
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ last_action_entity | default('') != '' }}"
+                sequence:
+                  - service: input_text.set_value
+                    target: { entity_id: !input last_action_text }
+                    data:
+                      value: "Overheat: AC_Grow COOL→{{ t_max }}; Electrolux OFF; Humidifier OFF. T={{ t }}°C, RH={{ rh }}%, VPD={{ vpd }}."
+              - conditions:
+                  - condition: template
+                    value_template: "{{ c_overheat_entity | default('') != '' }}"
+                sequence:
+                  - service: counter.increment
+                    target: { entity_id: !input counter_overheat }
+
+      - conditions:
+          - condition: numeric_state
+            entity_id: !input temp_sensor
+            below: !input min_temp
+        sequence:
+          - service: climate.turn_off
+            target: { entity_id: !input ac_grow }
+          - service: climate.set_hvac_mode
+            target: { entity_id: !input electrolux }
+            data: { hvac_mode: dry }
+          - service: humidifier.turn_off
+            target: { entity_id: !input humidifier }
+          - if:
+              - condition: template
+                value_template: "{{ dbg }}"
+            then:
+              - service: logbook.log
+                data:
+                  name: "VPD Controller"
+                  message: "Undercool: T={{ t }}°C < {{ t_min }}. Action: Electrolux DRY; AC_Grow OFF; Humidifier OFF. RH={{ rh }}%, VPD={{ vpd }}."
+              - service: system_log.write
+                data:
+                  level: info
+                  message: "[VPD Controller] Undercool branch executed."
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ last_action_entity | default('') != '' }}"
+                sequence:
+                  - service: input_text.set_value
+                    target: { entity_id: !input last_action_text }
+                    data:
+                      value: "Undercool: Electrolux DRY; AC_Grow OFF; Humidifier OFF. T={{ t }}°C, RH={{ rh }}%, VPD={{ vpd }}."
+              - conditions:
+                  - condition: template
+                    value_template: "{{ c_undercool_entity | default('') != '' }}"
+                sequence:
+                  - service: counter.increment
+                    target: { entity_id: !input counter_undercool }
+
+      - conditions:
+          - condition: numeric_state
+            entity_id: !input humi_sensor
+            above: !input max_humi
+          - condition: template
+            value_template: "{{ elx_can_change }}"
+          - condition: template
+            value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
+        sequence:
+          - service: climate.turn_off
+            target: { entity_id: !input ac_grow }
+          - service: climate.set_hvac_mode
+            target: { entity_id: !input electrolux }
+            data: { hvac_mode: dry }
+          - service: humidifier.turn_off
+            target: { entity_id: !input humidifier }
+          - if:
+              - condition: template
+                value_template: "{{ dbg }}"
+            then:
+              - service: logbook.log
+                data:
+                  name: "VPD Controller"
+                  message: "RH high: RH={{ rh }}% > {{ rh_max }}. Action: Electrolux DRY; AC_Grow OFF; Humidifier OFF. T={{ t }}°C, VPD={{ vpd }}."
+              - service: system_log.write
+                data:
+                  level: info
+                  message: "[VPD Controller] High humidity branch executed."
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ last_action_entity | default('') != '' }}"
+                sequence:
+                  - service: input_text.set_value
+                    target: { entity_id: !input last_action_text }
+                    data:
+                      value: "RH high: Electrolux DRY; AC_Grow OFF; Humidifier OFF. T={{ t }}°C, RH={{ rh }}%, VPD={{ vpd }}."
+              - conditions:
+                  - condition: template
+                    value_template: "{{ c_rh_high_entity | default('') != '' }}"
+                sequence:
+                  - service: counter.increment
+                    target: { entity_id: !input counter_rh_high }
+
+      - conditions:
+          - condition: numeric_state
+            entity_id: !input humi_sensor
+            below: !input min_humi
+          - condition: template
+            value_template: "{{ humi_can_change }}"
+          - condition: template
+            value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
+        sequence:
+          - service: humidifier.turn_on
+            target: { entity_id: !input humidifier }
+          - service: climate.turn_off
+            target: { entity_id: !input electrolux }
+          - service: climate.turn_off
+            target: { entity_id: !input ac_grow }
+          - if:
+              - condition: template
+                value_template: "{{ dbg }}"
+            then:
+              - service: logbook.log
+                data:
+                  name: "VPD Controller"
+                  message: "RH low: RH={{ rh }}% < {{ rh_min }}. Action: Humidifier ON; Electrolux OFF; AC_Grow OFF. T={{ t }}°C, VPD={{ vpd }}."
+              - service: system_log.write
+                data:
+                  level: info
+                  message: "[VPD Controller] Low humidity branch executed."
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ last_action_entity | default('') != '' }}"
+                sequence:
+                  - service: input_text.set_value
+                    target: { entity_id: !input last_action_text }
+                    data:
+                      value: "RH low: Humidifier ON; Electrolux OFF; AC_Grow OFF. T={{ t }}°C, RH={{ rh }}%, VPD={{ vpd }}."
+              - conditions:
+                  - condition: template
+                    value_template: "{{ c_rh_low_entity | default('') != '' }}"
+                sequence:
+                  - service: counter.increment
+                    target: { entity_id: !input counter_rh_low }
+
+      - conditions:
+          - condition: template
+            value_template: "{{ vpd > vpd_hi }}"
+          - condition: template
+            value_template: "{{ humi_can_change }}"
+          - condition: template
+            value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
+        sequence:
+          - service: humidifier.turn_on
+            target: { entity_id: !input humidifier }
+          - service: climate.turn_off
+            target: { entity_id: !input electrolux }
+          - service: climate.turn_off
+            target: { entity_id: !input ac_grow }
+          - if:
+              - condition: template
+                value_template: "{{ dbg }}"
+            then:
+              - service: logbook.log
+                data:
+                  name: "VPD Controller"
+                  message: "VPD high: VPD={{ vpd }} > {{ vpd_hi }}. Action: Humidifier ON; Electrolux OFF; AC_Grow OFF. T={{ t }}°C, RH={{ rh }}%."
+              - service: system_log.write
+                data:
+                  level: info
+                  message: "[VPD Controller] VPD-high branch executed."
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ last_action_entity | default('') != '' }}"
+                sequence:
+                  - service: input_text.set_value
+                    target: { entity_id: !input last_action_text }
+                    data:
+                      value: "VPD high: Humidifier ON; Electrolux OFF; AC_Grow OFF. T={{ t }}°C, RH={{ rh }}%, VPD={{ vpd }}."
+              - conditions:
+                  - condition: template
+                    value_template: "{{ c_vpd_high_entity | default('') != '' }}"
+                sequence:
+                  - service: counter.increment
+                    target: { entity_id: !input counter_vpd_high }
+
+      - conditions:
+          - condition: template
+            value_template: "{{ vpd < vpd_lo }}"
+          - condition: template
+            value_template: "{{ elx_can_change }}"
+          - condition: template
+            value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
+        sequence:
+          - service: climate.set_hvac_mode
+            target: { entity_id: !input electrolux }
+            data: { hvac_mode: dry }
+          - service: humidifier.turn_off
+            target: { entity_id: !input humidifier }
+          - service: climate.turn_off
+            target: { entity_id: !input ac_grow }
+          - if:
+              - condition: template
+                value_template: "{{ dbg }}"
+            then:
+              - service: logbook.log
+                data:
+                  name: "VPD Controller"
+                  message: "VPD low: VPD={{ vpd }} < {{ vpd_lo }}. Action: Electrolux DRY; Humidifier OFF; AC_Grow OFF. T={{ t }}°C, RH={{ rh }}%."
+              - service: system_log.write
+                data:
+                  level: info
+                  message: "[VPD Controller] VPD-low branch executed."
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ last_action_entity | default('') != '' }}"
+                sequence:
+                  - service: input_text.set_value
+                    target: { entity_id: !input last_action_text }
+                    data:
+                      value: "VPD low: Electrolux DRY; Humidifier OFF; AC_Grow OFF. T={{ t }}°C, RH={{ rh }}%, VPD={{ vpd }}."
+              - conditions:
+                  - condition: template
+                    value_template: "{{ c_vpd_low_entity | default('') != '' }}"
+                sequence:
+                  - service: counter.increment
+                    target: { entity_id: !input counter_vpd_low }
+    default:
+      - if:
+          - condition: template
+            value_template: "{{ dbg and not price_ok }}"
+        then:
+          - service: logbook.log
+            data:
+              name: "VPD Controller"
+              message: "Hold (price lockout): price={{ price_val }} > cap={{ price_cap_val }}. T={{ t }}°C, RH={{ rh }}%, VPD={{ vpd }} (target {{ vpd_target }}±{{ hyst }})."
+          - service: system_log.write
+            data:
+              level: warning
+              message: "[VPD Controller] Hold due to price lockout."
+      - if:
+          - condition: template
+            value_template: "{{ dbg and price_ok }}"
+        then:
+          - service: logbook.log
+            data:
+              name: "VPD Controller"
+              message: "Hold (cycle/within-band): ac_can={{ ac_can_change }}, elx_can={{ elx_can_change }}, humi_can={{ humi_can_change }}. T={{ t }}°C ({{ t_min }}–{{ t_max }}), RH={{ rh }}% ({{ rh_min }}–{{ rh_max }}), VPD={{ vpd }} ({{ vpd_lo }}–{{ vpd_hi }})."
+          - service: system_log.write
+            data:
+              level: debug
+              message: "[VPD Controller] Hold branch (cycle guard or within band)."
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ last_action_entity | default('') != '' }}"
+            sequence:
+              - service: input_text.set_value
+                target: { entity_id: !input last_action_text }
+                data:
+                  value: "Hold: within limits or guard/price lockout. T={{ t }}°C, RH={{ rh }}%, VPD={{ vpd }}."
+          - conditions:
+              - condition: template
+                value_template: "{{ c_hold_entity | default('') != '' }}"
+            sequence:
+              - service: counter.increment
+                target: { entity_id: !input counter_hold }
+
+
