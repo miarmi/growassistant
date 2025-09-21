@@ -107,6 +107,12 @@ blueprint:
           mode: box
 
     # Energy/consumption options
+    enable_cycle_guards:
+      name: Enable min on/off cycle guards
+      description: Disable to allow immediate switching while testing.
+      default: false
+      selector:
+        boolean:
     energy_mode:
       name: Energy mode
       description: efficiency_first prefers the lowest-consumption action for non-safety corrections.
@@ -258,6 +264,7 @@ variables:
 
   # Energy / guards
   e_mode: !input energy_mode
+  cycle_on: !input enable_cycle_guards
   now_ts: "{{ as_timestamp(now()) }}"
   ac_last: "{{ as_timestamp(states[ac_entity].last_changed) if ac_entity else 0 }}"
   elx_last: "{{ as_timestamp(states[elx_entity].last_changed) if elx_entity else 0 }}"
@@ -379,7 +386,7 @@ action:
             entity_id: !input humi_sensor
             above: !input max_humi
           - condition: template
-            value_template: "{{ elx_can_change }}"
+            value_template: "{{ (not cycle_on) or elx_can_change }}"
           - condition: template
             value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
         sequence:
@@ -424,7 +431,7 @@ action:
             entity_id: !input humi_sensor
             below: !input min_humi
           - condition: template
-            value_template: "{{ humi_can_change }}"
+            value_template: "{{ (not cycle_on) or humi_can_change }}"
           - condition: template
             value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
         sequence:
@@ -468,7 +475,7 @@ action:
           - condition: template
             value_template: "{{ vpd > vpd_hi }}"
           - condition: template
-            value_template: "{{ humi_can_change }}"
+            value_template: "{{ (not cycle_on) or humi_can_change }}"
           - condition: template
             value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
         sequence:
@@ -512,7 +519,7 @@ action:
           - condition: template
             value_template: "{{ vpd < vpd_lo }}"
           - condition: template
-            value_template: "{{ elx_can_change }}"
+            value_template: "{{ (not cycle_on) or elx_can_change }}"
           - condition: template
             value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
         sequence:
