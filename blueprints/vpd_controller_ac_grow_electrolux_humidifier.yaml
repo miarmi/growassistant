@@ -10,7 +10,7 @@ blueprint:
     Logging: Logbook + system_log; optional input_text for last action; optional counters per branch.
   domain: automation
   author: user
-  source_url: "https://github.com/miarmi/growassistant/blob/main/blueprints/vpd_controller_ac_grow_electrolux_humidifier.yaml"
+  source_url: "https://raw.githubusercontent.com/miarmi/growassistant/main/blueprints/vpd_controller_ac_grow_electrolux_humidifier.yaml"
 
   input:
     vpd_sensor:
