@@ -387,8 +387,7 @@ action:
             above: !input max_humi
           - condition: template
             value_template: "{{ (not cycle_on) or elx_can_change }}"
-          - condition: template
-            value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
+          # Always allow safety dehumidify regardless of price
         sequence:
           - service: climate.set_hvac_mode
             target: { entity_id: !input ac_grow }
@@ -432,8 +431,7 @@ action:
             below: !input min_humi
           - condition: template
             value_template: "{{ (not cycle_on) or humi_can_change }}"
-          - condition: template
-            value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
+          # Allow humidify regardless of price during testing/operation
         sequence:
           - service: homeassistant.turn_on
             target: { entity_id: !input humidifier }
@@ -476,8 +474,7 @@ action:
             value_template: "{{ vpd > vpd_hi }}"
           - condition: template
             value_template: "{{ (not cycle_on) or humi_can_change }}"
-          - condition: template
-            value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
+          # Allow humidify regardless of price during testing/operation
         sequence:
           - service: homeassistant.turn_on
             target: { entity_id: !input humidifier }
@@ -520,8 +517,7 @@ action:
             value_template: "{{ vpd < vpd_lo }}"
           - condition: template
             value_template: "{{ (not cycle_on) or elx_can_change }}"
-          - condition: template
-            value_template: "{{ price_ok or e_mode != 'efficiency_first' }}"
+          # Always allow dehumidify regardless of price
         sequence:
           - service: climate.set_hvac_mode
             target: { entity_id: !input electrolux }
