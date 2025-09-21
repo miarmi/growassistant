@@ -281,8 +281,6 @@ trigger:
     entity_id: !input temp_sensor
   - platform: state
     entity_id: !input humi_sensor
-  - platform: time_pattern
-    seconds: "/30"
   - platform: homeassistant
     event: start
 
