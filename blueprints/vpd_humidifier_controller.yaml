@@ -38,7 +38,7 @@ trigger:
   - platform: event
     event_type: vpd_mode
 
-mode: single
+mode: restart
 
 condition:
   - condition: state

@@ -126,7 +126,7 @@ trigger:
   - platform: event
     event_type: vpd_control
 
-mode: single
+mode: restart
 
 condition:
   - condition: state
