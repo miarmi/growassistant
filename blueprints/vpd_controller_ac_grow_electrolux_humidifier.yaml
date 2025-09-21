@@ -330,18 +330,15 @@ action:
             data: { hvac_mode: off }
           - service: homeassistant.turn_off
             target: { entity_id: !input humidifier }
-          - if:
-              - condition: template
-                value_template: "{{ dbg }}"
-            then:
-              - service: logbook.log
-                data:
-                  name: "VPD Controller"
-                  message: "Overheat: T={{ t }}°C > {{ t_max }}. Action: AC_Grow COOL→{{ t_max }}; Electrolux OFF; Humidifier OFF. RH={{ rh }}%, VPD={{ vpd }} (target {{ vpd_target }}±{{ hyst }})."
-              - service: system_log.write
-                data:
-                  level: info
-                  message: "[VPD Controller] Overheat branch executed."
+          - service: logbook.log
+            data:
+              name: "VPD Controller"
+              message: "Overheat: T={{ t }}°C > {{ t_max }}. Action: AC_Grow COOL→{{ t_max }}; Electrolux OFF; Humidifier OFF. RH={{ rh }}%, VPD={{ vpd }} (target {{ vpd_target }}±{{ hyst }})."
+              entity_id: "{{ this.entity_id }}"
+          - service: system_log.write
+            data:
+              level: info
+              message: "[VPD Controller] Overheat branch executed."
           - choose:
               - conditions:
                   - condition: template
@@ -371,18 +368,15 @@ action:
             data: { hvac_mode: dry }
           - service: homeassistant.turn_off
             target: { entity_id: !input humidifier }
-          - if:
-              - condition: template
-                value_template: "{{ dbg }}"
-            then:
-              - service: logbook.log
-                data:
-                  name: "VPD Controller"
-                  message: "Undercool: T={{ t }}°C < {{ t_min }}. Action: Electrolux DRY; AC_Grow OFF; Humidifier OFF. RH={{ rh }}%, VPD={{ vpd }}."
-              - service: system_log.write
-                data:
-                  level: info
-                  message: "[VPD Controller] Undercool branch executed."
+          - service: logbook.log
+            data:
+              name: "VPD Controller"
+              message: "Undercool: T={{ t }}°C < {{ t_min }}. Action: Electrolux DRY; AC_Grow OFF; Humidifier OFF. RH={{ rh }}%, VPD={{ vpd }}."
+              entity_id: "{{ this.entity_id }}"
+          - service: system_log.write
+            data:
+              level: info
+              message: "[VPD Controller] Undercool branch executed."
           - choose:
               - conditions:
                   - condition: template
@@ -416,18 +410,15 @@ action:
                 data: { hvac_mode: dry }
           - service: homeassistant.turn_off
             target: { entity_id: !input humidifier }
-          - if:
-              - condition: template
-                value_template: "{{ dbg }}"
-            then:
-              - service: logbook.log
-                data:
-                  name: "VPD Controller"
-                  message: "RH high: RH={{ rh }}% > {{ rh_max }}. Action: Electrolux DRY; AC_Grow OFF; Humidifier OFF. T={{ t }}°C, VPD={{ vpd }}."
-              - service: system_log.write
-                data:
-                  level: info
-                  message: "[VPD Controller] High humidity branch executed."
+          - service: logbook.log
+            data:
+              name: "VPD Controller"
+              message: "RH high: RH={{ rh }}% > {{ rh_max }}. Action: Electrolux DRY; AC_Grow OFF; Humidifier OFF. T={{ t }}°C, VPD={{ vpd }}."
+              entity_id: "{{ this.entity_id }}"
+          - service: system_log.write
+            data:
+              level: info
+              message: "[VPD Controller] High humidity branch executed."
           - choose:
               - conditions:
                   - condition: template
@@ -460,18 +451,15 @@ action:
           - service: climate.set_hvac_mode
             target: { entity_id: !input ac_grow }
             data: { hvac_mode: off }
-          - if:
-              - condition: template
-                value_template: "{{ dbg }}"
-            then:
-              - service: logbook.log
-                data:
-                  name: "VPD Controller"
-                  message: "RH low: RH={{ rh }}% < {{ rh_min }}. Action: Humidifier ON; Electrolux OFF; AC_Grow OFF. T={{ t }}°C, VPD={{ vpd }}."
-              - service: system_log.write
-                data:
-                  level: info
-                  message: "[VPD Controller] Low humidity branch executed."
+          - service: logbook.log
+            data:
+              name: "VPD Controller"
+              message: "RH low: RH={{ rh }}% < {{ rh_min }}. Action: Humidifier ON; Electrolux OFF; AC_Grow OFF. T={{ t }}°C, VPD={{ vpd }}."
+              entity_id: "{{ this.entity_id }}"
+          - service: system_log.write
+            data:
+              level: info
+              message: "[VPD Controller] Low humidity branch executed."
           - choose:
               - conditions:
                   - condition: template
@@ -503,18 +491,15 @@ action:
           - service: climate.set_hvac_mode
             target: { entity_id: !input ac_grow }
             data: { hvac_mode: off }
-          - if:
-              - condition: template
-                value_template: "{{ dbg }}"
-            then:
-              - service: logbook.log
-                data:
-                  name: "VPD Controller"
-                  message: "VPD high: VPD={{ vpd }} > {{ vpd_hi }}. Action: Humidifier ON; Electrolux OFF; AC_Grow OFF. T={{ t }}°C, RH={{ rh }}%."
-              - service: system_log.write
-                data:
-                  level: info
-                  message: "[VPD Controller] VPD-high branch executed."
+          - service: logbook.log
+            data:
+              name: "VPD Controller"
+              message: "VPD high: VPD={{ vpd }} > {{ vpd_hi }}. Action: Humidifier ON; Electrolux OFF; AC_Grow OFF. T={{ t }}°C, RH={{ rh }}%."
+              entity_id: "{{ this.entity_id }}"
+          - service: system_log.write
+            data:
+              level: info
+              message: "[VPD Controller] VPD-high branch executed."
           - choose:
               - conditions:
                   - condition: template
@@ -547,18 +532,15 @@ action:
           - service: climate.set_hvac_mode
             target: { entity_id: !input ac_grow }
             data: { hvac_mode: off }
-          - if:
-              - condition: template
-                value_template: "{{ dbg }}"
-            then:
-              - service: logbook.log
-                data:
-                  name: "VPD Controller"
-                  message: "VPD low: VPD={{ vpd }} < {{ vpd_lo }}. Action: Electrolux DRY; Humidifier OFF; AC_Grow OFF. T={{ t }}°C, RH={{ rh }}%."
-              - service: system_log.write
-                data:
-                  level: info
-                  message: "[VPD Controller] VPD-low branch executed."
+          - service: logbook.log
+            data:
+              name: "VPD Controller"
+              message: "VPD low: VPD={{ vpd }} < {{ vpd_lo }}. Action: Electrolux DRY; Humidifier OFF; AC_Grow OFF. T={{ t }}°C, RH={{ rh }}%."
+              entity_id: "{{ this.entity_id }}"
+          - service: system_log.write
+            data:
+              level: info
+              message: "[VPD Controller] VPD-low branch executed."
           - choose:
               - conditions:
                   - condition: template
@@ -575,30 +557,15 @@ action:
                   - service: counter.increment
                     target: { entity_id: !input counter_vpd_low }
     default:
-      - if:
-          - condition: template
-            value_template: "{{ dbg and not price_ok }}"
-        then:
-          - service: logbook.log
-            data:
-              name: "VPD Controller"
-              message: "Hold (price lockout): price={{ price_val }} > cap={{ price_cap_val }}. T={{ t }}°C, RH={{ rh }}%, VPD={{ vpd }} (target {{ vpd_target }}±{{ hyst }})."
-          - service: system_log.write
-            data:
-              level: warning
-              message: "[VPD Controller] Hold due to price lockout."
-      - if:
-          - condition: template
-            value_template: "{{ dbg and price_ok }}"
-        then:
-          - service: logbook.log
-            data:
-              name: "VPD Controller"
-              message: "Hold (cycle/within-band): ac_can={{ ac_can_change }}, elx_can={{ elx_can_change }}, humi_can={{ humi_can_change }}. T={{ t }}°C ({{ t_min }}–{{ t_max }}), RH={{ rh }}% ({{ rh_min }}–{{ rh_max }}), VPD={{ vpd }} ({{ vpd_lo }}–{{ vpd_hi }})."
-          - service: system_log.write
-            data:
-              level: debug
-              message: "[VPD Controller] Hold branch (cycle guard or within band)."
+      - service: logbook.log
+        data:
+          name: "VPD Controller"
+          message: "Hold: price_ok={{ price_ok }}, ac_can={{ ac_can_change }}, elx_can={{ elx_can_change }}, humi_can={{ humi_can_change }}. T={{ t }}°C ({{ t_min }}–{{ t_max }}), RH={{ rh }}% ({{ rh_min }}–{{ rh_max }}), VPD={{ vpd }} ({{ vpd_lo }}–{{ vpd_hi }})."
+          entity_id: "{{ this.entity_id }}"
+      - service: system_log.write
+        data:
+          level: debug
+          message: "[VPD Controller] Hold branch (cycle guard or within band)."
       - choose:
           - conditions:
               - condition: template
