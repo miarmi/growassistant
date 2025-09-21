@@ -175,6 +175,18 @@ blueprint:
       selector:
         boolean:
 
+    # Trigger debounce
+    sensor_debounce_seconds:
+      name: Sensor debounce (seconds)
+      description: Minimum time a sensor state must persist before triggering.
+      default: 5
+      selector:
+        number:
+          min: 0
+          max: 120
+          step: 1
+          mode: box
+
     # Optional helpers for tuning/telemetry
     last_action_text:
       name: (Optional) input_text to store last action
@@ -284,10 +296,16 @@ variables:
 trigger:
   - platform: state
     entity_id: !input vpd_sensor
+    for:
+      seconds: !input sensor_debounce_seconds
   - platform: state
     entity_id: !input temp_sensor
+    for:
+      seconds: !input sensor_debounce_seconds
   - platform: state
     entity_id: !input humi_sensor
+    for:
+      seconds: !input sensor_debounce_seconds
   - platform: homeassistant
     event: start
 
