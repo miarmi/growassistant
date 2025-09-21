@@ -385,16 +385,17 @@ action:
           - condition: numeric_state
             entity_id: !input humi_sensor
             above: !input max_humi
-          - condition: template
-            value_template: "{{ (not cycle_on) or elx_can_change }}"
-          # Always allow safety dehumidify regardless of price
         sequence:
           - service: climate.set_hvac_mode
             target: { entity_id: !input ac_grow }
             data: { hvac_mode: off }
-          - service: climate.set_hvac_mode
-            target: { entity_id: !input electrolux }
-            data: { hvac_mode: dry }
+          - if:
+              - condition: template
+                value_template: "{{ (not cycle_on) or elx_can_change }}"
+            then:
+              - service: climate.set_hvac_mode
+                target: { entity_id: !input electrolux }
+                data: { hvac_mode: dry }
           - service: homeassistant.turn_off
             target: { entity_id: !input humidifier }
           - if:
@@ -515,13 +516,14 @@ action:
       - conditions:
           - condition: template
             value_template: "{{ vpd < vpd_lo }}"
-          - condition: template
-            value_template: "{{ (not cycle_on) or elx_can_change }}"
-          # Always allow dehumidify regardless of price
         sequence:
-          - service: climate.set_hvac_mode
-            target: { entity_id: !input electrolux }
-            data: { hvac_mode: dry }
+          - if:
+              - condition: template
+                value_template: "{{ (not cycle_on) or elx_can_change }}"
+            then:
+              - service: climate.set_hvac_mode
+                target: { entity_id: !input electrolux }
+                data: { hvac_mode: dry }
           - service: homeassistant.turn_off
             target: { entity_id: !input humidifier }
           - service: climate.set_hvac_mode
