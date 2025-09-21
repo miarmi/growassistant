@@ -45,9 +45,9 @@ blueprint:
       name: Humidifier
       selector:
         entity:
-          filter:
-            - domain: humidifier
-            - domain: switch
+          domain:
+            - humidifier
+            - switch
 
     target_vpd:
       name: Target VPD (kPa)
