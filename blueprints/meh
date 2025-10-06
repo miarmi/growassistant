@@ -1,24 +1,20 @@
 blueprint:
-  name: Predictive Humidifier Pre-Start (AC Cooling Cycles)
+  name: Predictive Humidifier Pre-Start (AC Cooling Cycles, Switch)
   description: >
-    Turns a humidifier on shortly BEFORE the next AC cooling cycle based on a learned
-    cycle period. Updates period at each compressor start (hvac_action='cooling').
-    Stops on VPD floor, after AC has been cooling for a bit, or on a safety timeout.
+    Pre-starts a humidifier (switch) shortly BEFORE the next AC cooling cycle based on a learned
+    cycle period. Updates the period at each compressor start. Stops on VPD floor, after AC has
+    been cooling for a bit, or on a safety timeout.
   domain: automation
   input:
     climate_entity:
       name: Climate (AC)
       selector: { entity: { domain: climate } }
-    humidifier_entity:
-      name: Humidifier
-      selector: { entity: { domain: humidifier } }
+    humidifier_switch:
+      name: Humidifier (switch)
+      selector: { entity: { domain: switch } }
     vpd_sensor:
       name: VPD sensor (kPa)
       selector: { entity: { domain: sensor } }
-    setpoint_humidity:
-      name: Target RH (%) to set on pre-start
-      default: 62
-      selector: { number: { min: 30, max: 90, step: 1, mode: slider } }
     vpd_start_above:
       name: Start if VPD is above (kPa)
       default: 0.60
@@ -55,9 +51,8 @@ max_exceeded: silent
 
 variables:
   climate: !input climate_entity
-  humid: !input humidifier_entity
+  hum_sw: !input humidifier_switch
   vpd: !input vpd_sensor
-  set_rh: !input setpoint_humidity
   vpd_hi: !input vpd_start_above
   vpd_lo: !input vpd_stop_below
   lead_s: !input lead_seconds
@@ -104,7 +99,7 @@ trigger:
 
   - id: stop_safety_timeout
     platform: state
-    entity_id: !input humidifier_entity
+    entity_id: !input humidifier_switch
     to: "on"
     for:
       minutes: !input safety_max_on_minutes
@@ -112,7 +107,7 @@ trigger:
 action:
   - choose:
 
-      # ---- Learn cycle period on each cooling start ----
+      # Learn cycle period on each cooling start (EMA)
       - conditions:
           - condition: trigger
             id: learn_cycle
@@ -137,7 +132,7 @@ action:
                 target: { entity_id: "{{ period_helper }}" }
                 data: { value: "{{ new_period }}" }
 
-      # ---- Pre-start humidifier just before the next cycle ----
+      # Pre-start humidifier (switch) just before the next cycle
       - conditions:
           - condition: trigger
             id: prestart
@@ -146,14 +141,14 @@ action:
           - condition: numeric_state
             entity_id: !input vpd_sensor
             above: !input vpd_start_above
+          - condition: state
+            entity_id: !input humidifier_switch
+            state: "off"
         sequence:
-          - service: humidifier.turn_on
-            target: { entity_id: !input humidifier_entity }
-          - service: humidifier.set_humidity
-            target: { entity_id: !input humidifier_entity }
-            data: { humidity: !input setpoint_humidity }
+          - service: switch.turn_on
+            target: { entity_id: !input humidifier_switch }
 
-      # ---- Stop conditions ----
+      # Stop conditions
       - conditions:
           - condition: trigger
             id:
@@ -161,5 +156,5 @@ action:
               - stop_after_cooling
               - stop_safety_timeout
         sequence:
-          - service: humidifier.turn_off
-            target: { entity_id: !input humidifier_entity }
+          - service: switch.turn_off
+            target: { entity_id: !input humidifier_switch }
